@@ -1,11 +1,13 @@
+import { Link } from "@tanstack/react-router";
+
 import type { Product } from "./product-card";
 
 // Larger catalog card for the Menu page; the landing page keeps the compact ProductCard.
 export default function MenuProductCard({ product }: { product: Product }) {
-  const { name, price, image, variant, description, care } = product;
+  const { slug, name, price, image, variant, description, care } = product;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-[18px] border border-ube-line bg-surface">
+    <article className="group relative flex flex-col overflow-hidden rounded-[18px] border border-ube-line bg-surface">
       <picture>
         <source media="(min-width: 1024px)" srcSet={image.desktop} />
         <img
@@ -20,7 +22,13 @@ export default function MenuProductCard({ product }: { product: Product }) {
         <div className="flex justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h3 className="font-body text-xl/[1.25] font-bold text-deep-ube lg:text-2xl/[1.25]">
-              {name}
+              <Link
+                to="/menu/$slug"
+                params={{ slug }}
+                className="after:absolute after:inset-0 after:content-[''] group-hover:text-ube-pop"
+              >
+                {name}
+              </Link>
             </h3>
             <p className="font-body text-xs text-plum">{variant.desktop}</p>
           </div>

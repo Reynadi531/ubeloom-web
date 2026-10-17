@@ -2,6 +2,7 @@ import type { Product } from "./product-card";
 
 export const products: Product[] = [
   {
+    slug: "lumpia-ubi-goreng",
     name: "Lumpia Ubi Goreng",
     price: "Rp 28.000",
     image: {
@@ -22,6 +23,7 @@ export const products: Product[] = [
     },
   },
   {
+    slug: "sparkling-starfruit",
     name: "Sparkling Starfruit",
     price: "Rp 16.000",
     image: {

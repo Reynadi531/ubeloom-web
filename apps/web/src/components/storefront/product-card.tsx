@@ -1,4 +1,7 @@
+import { Link } from "@tanstack/react-router";
+
 export interface Product {
+  slug: string;
   name: string;
   price: string;
   image: { mobile: string; desktop: string };
@@ -8,10 +11,10 @@ export interface Product {
 }
 
 export default function ProductCard({ product }: { product: Product }) {
-  const { name, price, image, variant, description, care } = product;
+  const { slug, name, price, image, variant, description, care } = product;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-ube-line bg-surface lg:rounded-[18px]">
+    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-ube-line bg-surface lg:rounded-[18px]">
       <picture>
         <source media="(min-width: 1024px)" srcSet={image.desktop} />
         <img
@@ -26,7 +29,13 @@ export default function ProductCard({ product }: { product: Product }) {
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-[3px]">
             <h3 className="font-display text-[19px] font-bold text-deep-ube lg:text-[22px]">
-              {name}
+              <Link
+                to="/menu/$slug"
+                params={{ slug }}
+                className="after:absolute after:inset-0 after:content-[''] group-hover:text-ube-pop"
+              >
+                {name}
+              </Link>
             </h3>
             <p className="hidden font-body text-[11px] text-plum lg:block">{variant.desktop}</p>
           </div>

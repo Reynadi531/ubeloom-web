@@ -1,0 +1,3 @@
+{
+  "extends": "@web-kwu/config/tsconfig.base.json"
+}

@@ -4,8 +4,6 @@ import { createMiddleware } from "@tanstack/react-start";
 import { Toaster } from "@web-kwu/ui/components/sonner";
 import { evlogErrorHandler } from "evlog/nitro/v3";
 
-import Header from "../components/header";
-
 import appCss from "../index.css?url";
 
 export interface RouterAppContext {}
@@ -46,10 +44,7 @@ function RootDocument() {
         <HeadContent />
       </head>
       <body>
-        <div className="grid h-svh grid-rows-[auto_1fr]">
-          <Header />
-          <Outlet />
-        </div>
+        <Outlet />
         <Toaster richColors />
         <TanStackRouterDevtools position="bottom-left" />
         <Scripts />

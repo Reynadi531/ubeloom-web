@@ -1,1 +1,21 @@
 @import "@web-kwu/ui/globals.css";
+@import "lenis/dist/lenis.css";
+
+/* ubeloom storefront brand tokens (design.pen · White-first design system) */
+@theme {
+  --color-ube-gold: #f8bf4e;
+  --color-deep-ube: #7c2961;
+  --color-ube-pop: #992b82;
+  --color-vanilla: #fff9ed;
+  --color-blush-pink: #f58ba6;
+  --color-ink: #321d2d;
+  --color-plum: #795c70;
+  --color-surface: #fffdf8;
+  --color-lilac: #e8dce8;
+  --color-ube-line: #e9d6e0;
+
+  --font-display: "Fredoka", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, monospace;
+  --font-wordmark: "Manrope", system-ui, sans-serif;
+}

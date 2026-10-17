@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ReactLenis } from "lenis/react";
 import { CalendarDays, MapPin, Truck, type LucideIcon } from "lucide-react";
 
-import ProductCard, { type Product } from "@/components/storefront/product-card";
+import ProductCard from "@/components/storefront/product-card";
+import { products } from "@/components/storefront/products";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 
@@ -16,61 +17,10 @@ export const Route = createFileRoute("/")({
           "Lumpia ubi hangat dan minuman segar. Preorder sekarang, lalu pilih pickup atau delivery saat checkout.",
       },
     ],
-    links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap",
-      },
-      { rel: "preload", as: "image", href: "/images/hero-lumpia.webp" },
-    ],
+    links: [{ rel: "preload", as: "image", href: "/images/hero-lumpia.webp" }],
   }),
   component: HomeComponent,
 });
-
-const products: Product[] = [
-  {
-    name: "Lumpia Ubi Goreng",
-    price: "Rp 28.000",
-    image: {
-      mobile: "/images/lumpia-ubi-goreng.webp",
-      desktop: "/images/lumpia-ubi-goreng.webp",
-    },
-    variant: {
-      mobile: "Original · isian ubi manis · 1 kotak",
-      desktop: "Original · isian ubi manis · 1 kotak",
-    },
-    description: {
-      mobile: "Lumpia goreng renyah dengan isian ubi manis lembut",
-      desktop: "Kulit lumpia goreng renyah dengan isian ubi manis yang lembut.",
-    },
-    care: {
-      mobile: "Alergen: konfirmasi · Terbaik disantap hangat",
-      desktop: "Alergen: konfirmasi sebelum rilis · Terbaik disantap hangat",
-    },
-  },
-  {
-    name: "Sparkling Starfruit",
-    price: "Rp 16.000",
-    image: {
-      mobile: "/images/sparkling-starfruit.webp",
-      desktop: "/images/sparkling-starfruit-wide.webp",
-    },
-    variant: {
-      mobile: "Dengan chia seed · bersoda",
-      desktop: "Dengan chia seed · minuman bersoda",
-    },
-    description: {
-      mobile: "Belimbing, chia seed, air soda dan es",
-      desktop: "Belimbing, chia seed, air soda dan es. Segar bergelembung.",
-    },
-    care: {
-      mobile: "Alergen: konfirmasi · Sajikan dingin",
-      desktop: "Alergen: konfirmasi sebelum rilis · Sajikan dingin, konsumsi hari yang sama",
-    },
-  },
-];
 
 const batchDetails: { icon: LucideIcon; label: string; value: string }[] = [
   {
@@ -107,11 +57,11 @@ const fulfillmentOptions: {
 
 function HomeComponent() {
   return (
-    <div className="min-h-svh bg-white font-body text-ink">
+    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
       {/* Lenis honours each section's scroll-margin-top when following #anchor links. */}
       <ReactLenis root options={{ anchors: true }} />
       <StorefrontNav />
-      <main className="flex flex-col">
+      <main className="flex flex-1 flex-col">
         <Hero />
         <BatchDetails />
         <Catalog />

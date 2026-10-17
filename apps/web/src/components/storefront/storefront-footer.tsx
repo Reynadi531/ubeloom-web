@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+
 import { storefrontLinks } from "./links";
 
 // Instagram, WhatsApp, and Kontak have no destinations yet, so they render as text.
@@ -10,10 +12,10 @@ export default function StorefrontFooter() {
           Jeda manis dari ubi ungu. Dibuat fresh, dikirim dengan hati.
         </p>
         <nav aria-label="Navigasi footer" className="flex gap-[17px]">
-          {storefrontLinks.slice(0, 2).map(({ href, label }) => (
-            <a key={href} href={href} className="font-body text-xs font-semibold text-vanilla">
+          {storefrontLinks.slice(0, 2).map(({ to, label }) => (
+            <Link key={to} to={to} className="font-body text-xs font-semibold text-vanilla">
               {label}
-            </a>
+            </Link>
           ))}
           <span className="font-body text-xs font-semibold text-vanilla">Kontak</span>
         </nav>
@@ -28,14 +30,14 @@ export default function StorefrontFooter() {
             <p className="font-wordmark text-[11px] text-lilac">Preorder treats, made with care.</p>
           </div>
           <nav aria-label="Navigasi footer" className="flex items-center gap-6">
-            {storefrontLinks.map(({ href, label }) => (
-              <a
-                key={href}
-                href={href}
+            {storefrontLinks.map(({ to, label }) => (
+              <Link
+                key={to}
+                to={to}
                 className="font-wordmark text-xs font-semibold text-vanilla hover:underline"
               >
                 {label}
-              </a>
+              </Link>
             ))}
           </nav>
         </div>

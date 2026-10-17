@@ -93,20 +93,9 @@ export default function SignInForm() {
         <form.Field name="password">
           {(field) => (
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <label htmlFor={field.name} className="font-body text-[13px] font-bold text-ink">
-                  Kata sandi *
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    toast.info("Hubungi administrator tim untuk pemulihan kata sandi.")
-                  }
-                  className="font-body text-xs font-bold text-deep-ube transition-colors hover:text-ube-pop"
-                >
-                  Lupa kata sandi?
-                </button>
-              </div>
+              <label htmlFor={field.name} className="font-body text-[13px] font-bold text-ink">
+                Kata sandi *
+              </label>
               <div className="relative">
                 <input
                   id={field.name}

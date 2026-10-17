@@ -53,7 +53,7 @@ function RootDocument() {
       <body>
         <Outlet />
         <Toaster richColors />
-        <TanStackRouterDevtools position="bottom-left" />
+        <TanStackRouterDevtools position="bottom-right" />
         <Scripts />
       </body>
     </html>

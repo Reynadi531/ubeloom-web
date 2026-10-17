@@ -15,6 +15,12 @@
     "better-auth": {
       "type": "http",
       "url": "https://mcp.better-auth.com/mcp"
+    },
+    "pencil": {
+      "type": "stdio",
+      "command": "/mnt/d/Program Files/Pen/resources/app.asar.unpacked/out/mcp-server-windows-x64.exe",
+      "args": ["--app", "desktop"],
+      "env": {}
     }
   }
 }

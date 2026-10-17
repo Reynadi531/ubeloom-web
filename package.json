@@ -42,6 +42,7 @@
     "infra:logs": "docker compose -f docker-compose.dev.yml logs -f",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
+    "db:seed": "cd apps/web && bun run db:seed",
     "auth:generate": "cd apps/web && bun run auth:generate",
     "check": "oxlint && oxfmt --write"
   },

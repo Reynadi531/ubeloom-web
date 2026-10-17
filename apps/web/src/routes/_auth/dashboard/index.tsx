@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, type LinkProps, createFileRoute } from "@tanstack/react-router";
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -10,7 +10,7 @@ import {
   Truck,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_auth/dashboard")({
+export const Route = createFileRoute("/_auth/dashboard/")({
   head: () => ({
     meta: [{ title: "Ringkasan · ubeloom" }],
   }),
@@ -40,27 +40,40 @@ const orderGrowth: { day: string; total: number }[] = [
   { day: "21 Okt", total: 54 },
 ];
 
-const actions: { count: number; title: string; description: string }[] = [
+const actions: { count: number; title: string; description: string; to: LinkProps["to"] }[] = [
   {
     count: 7,
     title: "Verifikasi bukti bayar",
     description: "Periksa kecocokan nominal sebelum pesanan masuk produksi.",
+    to: "/dashboard/verifikasi-bayar",
   },
   {
     count: 12,
     title: "Tindak lanjut pembayaran",
     description: "Invoice menunggu pembayaran pelanggan.",
+    to: "/dashboard/pesanan",
   },
   {
     count: 6,
     title: "Serahkan ke kurir",
     description: "Pesanan lunas siap beralih ke dalam perjalanan.",
+    to: "/dashboard/produksi-kirim",
   },
 ];
 
-const publishedProducts: { name: string; price: string; image: string }[] = [
-  { name: "Lumpia Ubi Goreng", price: "Rp 28.000", image: "/images/lumpia-ubi-goreng.webp" },
-  { name: "Sparkling Starfruit", price: "Rp 16.000", image: "/images/sparkling-starfruit.webp" },
+const publishedProducts: { slug: string; name: string; price: string; image: string }[] = [
+  {
+    slug: "lumpia-ubi-goreng",
+    name: "Lumpia Ubi Goreng",
+    price: "Rp 28.000",
+    image: "/images/lumpia-ubi-goreng.webp",
+  },
+  {
+    slug: "sparkling-starfruit",
+    name: "Sparkling Starfruit",
+    price: "Rp 16.000",
+    image: "/images/sparkling-starfruit.webp",
+  },
 ];
 
 const fulfillment: { label: string; count: number; detail: string; icon: LucideIcon }[] = [
@@ -96,13 +109,13 @@ function DashboardComponent() {
             {activeBatch.name}
             <ChevronDown className="size-3.5 text-plum" />
           </button>
-          <button
-            type="button"
+          <Link
+            to="/dashboard/pesanan"
             className="flex items-center gap-[7px] rounded-lg bg-deep-ube px-[15px] py-[11px] text-[11px] font-bold text-white transition-colors hover:bg-ube-pop"
           >
             Lihat pesanan
             <ArrowUpRight className="size-3.5" />
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -148,18 +161,23 @@ function DashboardComponent() {
             title="Perlu tindakan"
             subtitle="Prioritas operasional untuk batch ini"
             link="Lihat antrean"
+            to="/dashboard/verifikasi-bayar"
           />
-          {actions.map(({ count, title, description }) => (
-            <div key={title} className="flex items-center gap-[13px] border-t border-ube-line pt-3">
+          {actions.map(({ count, title, description, to }) => (
+            <Link
+              key={title}
+              to={to}
+              className="group flex items-center gap-[13px] border-t border-ube-line pt-3"
+            >
               <span className="flex size-[39px] shrink-0 items-center justify-center rounded-[9px] bg-[#f6eaf2] font-display text-[17px] font-bold text-deep-ube">
                 {count}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-xs font-bold text-ink">{title}</p>
+                <p className="text-xs font-bold text-ink group-hover:text-deep-ube">{title}</p>
                 <p className="text-[10px] text-plum">{description}</p>
               </div>
               <ArrowUpRight className="size-4 shrink-0 text-deep-ube" />
-            </div>
+            </Link>
           ))}
         </section>
 
@@ -168,11 +186,14 @@ function DashboardComponent() {
             title="Produk yang tayang"
             subtitle="Detail halaman pelanggan"
             link="Kelola"
+            to="/dashboard/batch-produk"
           />
-          {publishedProducts.map(({ name, price, image }) => (
-            <div
-              key={name}
-              className="flex items-center gap-[11px] border-t border-ube-line pt-[13px]"
+          {publishedProducts.map(({ slug, name, price, image }) => (
+            <Link
+              key={slug}
+              to="/dashboard/batch-produk/$slug"
+              params={{ slug }}
+              className="group flex items-center gap-[11px] border-t border-ube-line pt-[13px]"
             >
               <img
                 src={image}
@@ -182,11 +203,11 @@ function DashboardComponent() {
                 className="size-14 shrink-0 rounded-[7px] object-cover"
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-xs font-bold text-ink">{name}</p>
+                <p className="text-xs font-bold text-ink group-hover:text-deep-ube">{name}</p>
                 <p className="text-[10px] whitespace-pre text-plum">{price} · Tayang</p>
               </div>
               <ArrowUpRight className="size-[15px] shrink-0 text-deep-ube" />
-            </div>
+            </Link>
           ))}
         </section>
       </div>
@@ -228,19 +249,29 @@ function DashboardComponent() {
   );
 }
 
-function CardHeading({ title, subtitle, link }: { title: string; subtitle: string; link: string }) {
+function CardHeading({
+  title,
+  subtitle,
+  link,
+  to,
+}: {
+  title: string;
+  subtitle: string;
+  link: string;
+  to: LinkProps["to"];
+}) {
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="flex flex-col gap-[3px]">
         <h2 className="font-display text-lg/[1.2] font-bold text-ink">{title}</h2>
         <p className="text-[11px] text-plum">{subtitle}</p>
       </div>
-      <button
-        type="button"
+      <Link
+        to={to}
         className="shrink-0 text-[11px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop"
       >
         {link} ↗
-      </button>
+      </Link>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, type LinkProps, useNavigate } from "@tanstack/react-router";
 import {
   BadgeCheck,
   CalendarDays,
@@ -18,17 +18,18 @@ import { authClient } from "@/lib/auth-client";
 interface NavItem {
   label: string;
   icon: LucideIcon;
-  /** Only pages that exist get a route; the rest render as upcoming. */
-  to?: "/dashboard";
+  to: LinkProps["to"];
+  /** Ringkasan sits at the admin root, so it only matches its own path. */
+  exact?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { label: "Ringkasan", icon: LayoutDashboard, to: "/dashboard" },
-  { label: "Pesanan", icon: ReceiptText },
-  { label: "Verifikasi bayar", icon: BadgeCheck },
-  { label: "Produksi & kirim", icon: Package },
-  { label: "Batch & produk", icon: CalendarDays },
-  { label: "Undian", icon: Ticket },
+  { label: "Ringkasan", icon: LayoutDashboard, to: "/dashboard", exact: true },
+  { label: "Pesanan", icon: ReceiptText, to: "/dashboard/pesanan" },
+  { label: "Verifikasi bayar", icon: BadgeCheck, to: "/dashboard/verifikasi-bayar" },
+  { label: "Produksi & kirim", icon: Package, to: "/dashboard/produksi-kirim" },
+  { label: "Batch & produk", icon: CalendarDays, to: "/dashboard/batch-produk" },
+  { label: "Undian", icon: Ticket, to: "/dashboard/undian" },
 ];
 
 const itemClassName =
@@ -75,11 +76,11 @@ export default function AdminSidebar({ userName }: { userName: string }) {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-svh w-[214px] shrink-0 border-r border-ube-line bg-vanilla lg:block">
+      <aside className="sticky top-0 hidden h-svh w-[214px] shrink-0 border-r border-ube-line bg-vanilla lg:block print:hidden">
         <SidebarContent userName={userName} />
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-ube-line bg-vanilla px-5 py-3 lg:hidden">
+      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-ube-line bg-vanilla px-5 py-3 lg:hidden print:hidden">
         <Link to="/dashboard" aria-label="ubeloom ringkasan">
           <img
             src="/images/ubeloom-logo.webp"
@@ -146,33 +147,22 @@ function SidebarContent({ userName, onNavigate }: { userName: string; onNavigate
       <p className="text-[10px] font-bold tracking-[1.6px] text-plum">RUANG KERJA</p>
 
       <nav aria-label="Navigasi admin" className="flex flex-col gap-1.5">
-        {navItems.map(({ label, icon: Icon, to }) =>
-          to ? (
-            <Link
-              key={label}
-              to={to}
-              onClick={onNavigate}
-              className={`${itemClassName} font-semibold text-ink hover:bg-lilac/50`}
-              activeProps={{
-                className: "bg-deep-ube font-bold text-vanilla hover:bg-deep-ube",
-                "aria-current": "page",
-              }}
-            >
-              <Icon className="size-[17px] shrink-0" />
-              {label}
-            </Link>
-          ) : (
-            <span
-              key={label}
-              aria-disabled="true"
-              title="Segera hadir"
-              className={`${itemClassName} cursor-not-allowed font-semibold text-ink/60`}
-            >
-              <Icon className="size-[17px] shrink-0 text-plum" />
-              {label}
-            </span>
-          ),
-        )}
+        {navItems.map(({ label, icon: Icon, to, exact }) => (
+          <Link
+            key={label}
+            to={to}
+            onClick={onNavigate}
+            activeOptions={{ exact }}
+            className={`${itemClassName} group font-semibold text-ink hover:bg-lilac/50`}
+            activeProps={{
+              className: "bg-deep-ube font-bold text-vanilla hover:bg-deep-ube",
+              "aria-current": "page",
+            }}
+          >
+            <Icon className="size-[17px] shrink-0 text-plum group-aria-[current=page]:text-vanilla" />
+            {label}
+          </Link>
+        ))}
       </nav>
 
       <div className="mt-auto flex flex-col gap-[5px] border-t border-ube-line px-1 pt-4">

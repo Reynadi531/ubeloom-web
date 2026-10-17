@@ -93,9 +93,19 @@ export default function SignInForm() {
         <form.Field name="password">
           {(field) => (
             <div className="flex flex-col gap-2">
-              <label htmlFor={field.name} className="font-body text-[13px] font-bold text-ink">
-                Kata sandi *
-              </label>
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor={field.name} className="font-body text-[13px] font-bold text-ink">
+                  Kata sandi *
+                </label>
+                {/* No self-service reset yet; recovery goes through the team administrator. */}
+                <button
+                  type="button"
+                  onClick={() => toast.info("Hubungi administrator tim untuk pemulihan akun.")}
+                  className="font-body text-xs font-bold text-deep-ube transition-colors hover:text-ube-pop"
+                >
+                  Lupa kata sandi?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   id={field.name}
@@ -107,7 +117,7 @@ export default function SignInForm() {
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                   aria-invalid={field.state.meta.errors.length > 0 || undefined}
-                  className={`${inputClassName} pr-12`}
+                  className={`${inputClassName} pr-12 text-[15px]`}
                 />
                 <button
                   type="button"

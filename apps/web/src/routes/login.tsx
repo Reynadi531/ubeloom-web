@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 
 import SignInForm from "@/components/sign-in-form";
 
@@ -27,9 +27,9 @@ function LoginComponent() {
           </Link>
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-[13px] font-bold text-deep-ube transition-colors hover:text-ube-pop"
+            className="text-[13px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop"
           >
-            <ArrowLeft className="size-4" />
+            <span aria-hidden>{"←  "}</span>
             Kembali ke toko
           </Link>
         </div>

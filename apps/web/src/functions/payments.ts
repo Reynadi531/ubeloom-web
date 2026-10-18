@@ -5,12 +5,13 @@ import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
 import { getCurrentBatch } from "@/lib/batches.server";
+import { getShopSettings } from "@/lib/settings.server";
 import { fromDateInputValue, toDateInputValue } from "@/lib/format";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db, storage } from "@/services";
 
 /** Rejected attempts stay visible in the queue ("Ditolak sebelumnya") for this long. */
-const RECENT_REJECTION_DAYS = 7;
+export const RECENT_REJECTION_DAYS = 7;
 const RECENT_REJECTION_LIMIT = 5;
 
 /** Midnight WIB of the current day. */
@@ -42,8 +43,13 @@ export const getPaymentReview = createServerFn({ method: "GET" })
             sql<number>`count(*) filter (where ${paymentAttempt.status} = 'approved' and ${paymentAttempt.reviewedAt} >= ${todayStart} and ${paymentAttempt.reviewedAt} < ${tomorrowStart})`.mapWith(
               Number,
             ),
-          rejected:
-            sql<number>`count(*) filter (where ${paymentAttempt.status} = 'rejected')`.mapWith(
+          resubmitted:
+            sql<number>`count(*) filter (where ${paymentAttempt.status} = 'pending' and ${paymentAttempt.attempt} > 1)`.mapWith(
+              Number,
+            ),
+          // Same window as the "Ditolak sebelumnya" rows in the queue.
+          rejectedRecent:
+            sql<number>`count(*) filter (where ${paymentAttempt.status} = 'rejected' and ${paymentAttempt.reviewedAt} >= ${rejectedSince})`.mapWith(
               Number,
             ),
         })
@@ -133,6 +139,7 @@ export const getPaymentReview = createServerFn({ method: "GET" })
       batch: currentBatch ? { name: currentBatch.name, status: currentBatch.status } : null,
       todayStart,
       metrics: counts,
+      merchantName: (await getShopSettings()).qrisMerchantName,
       attempts,
     };
   });

@@ -24,8 +24,6 @@ type BatchInfo = NonNullable<DrawPage["batch"]>;
 type Pool = Extract<DrawPage, { pool: object }>["pool"];
 type Draw = NonNullable<Extract<DrawPage, { pool: object }>["draw"]>;
 
-const defaultPrizes = ["Paket ubeloom", "Voucher Rp 50.000", "Merchandise"];
-
 const executionSteps = [
   "Selesaikan antrean verifikasi & cutoff",
   "Bekukan daftar invoice dan versi aturan",
@@ -263,9 +261,7 @@ function DrawWorkspace({ batch, pool, draw }: { batch: BatchInfo; pool: Pool; dr
 
   const setWinnerCount = (value: number) => {
     const count = Math.min(Math.max(Math.trunc(value) || 1, 1), draw.maxWinners);
-    setPrizes((current) =>
-      Array.from({ length: count }, (_, index) => current[index] ?? defaultPrizes[index] ?? ""),
-    );
+    setPrizes((current) => Array.from({ length: count }, (_, index) => current[index] ?? ""));
   };
 
   const run = async (kind: "save" | "freeze" | "draw", action: () => Promise<string>) => {
@@ -595,8 +591,8 @@ function PoolPreview({ draw, pool }: { draw: Draw; pool: Pool }) {
         <h2 className="text-[10px] font-extrabold text-deep-ube">PRATINJAU · BELUM DIBEKUKAN</h2>
         <p className="text-[31px]/[1.2] font-extrabold text-deep-ube">{pool.optedIn} invoice</p>
         <p className="text-[11px]/[1.45] text-plum">
-          Angka ini dapat berubah. Pool final hanya memuat pesanan lunas, opt-in, bukan test, dan
-          tidak dibatalkan atau refund.
+          Angka ini dapat berubah. Pool final hanya memuat pesanan lunas, opt-in, dan tidak
+          dibatalkan.
         </p>
       </>
     );
@@ -614,7 +610,7 @@ function PoolPreview({ draw, pool }: { draw: Draw; pool: Pool }) {
       </p>
       <p className="text-[11px]/[1.45] text-plum">
         Pool terkunci bersama aturan versi {draw.rulesVersion}. Kelayakan setiap invoice dicek ulang
-        saat pengundian; pesanan yang batal atau refund gugur. Angka di bawah tetap langsung.
+        saat pengundian; pesanan yang dibatalkan gugur. Angka di bawah tetap langsung.
       </p>
     </>
   );

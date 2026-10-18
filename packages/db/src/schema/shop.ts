@@ -365,6 +365,24 @@ export const drawWinner = pgTable(
   ],
 );
 
+/**
+ * Singleton row (id "default") of business details shown on invoices, payment
+ * review and checkout. Edited from Pengaturan in the dashboard.
+ */
+export const shopSetting = pgTable("shop_setting", {
+  id: text("id").primaryKey().default("default"),
+  /** Brand printed on invoices. */
+  brandName: text("brand_name").notNull().default("ubeloom"),
+  /** Merchant name customers must match in their QRIS app; empty until configured. */
+  qrisMerchantName: text("qris_merchant_name").notNull().default(""),
+  /** Non-cash payment methods offered on manual orders, e.g. "Transfer bank · BCA". */
+  paymentMethods: jsonb("payment_methods").$type<string[]>().notNull().default(["QRIS"]),
+  /** Closing note printed on issued invoices. */
+  invoiceMemo: text("invoice_memo").notNull().default(""),
+  updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: updatedAt(),
+});
+
 export const shopRelations = defineRelationsPart(
   {
     user,

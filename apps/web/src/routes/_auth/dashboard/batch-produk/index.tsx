@@ -227,18 +227,21 @@ function BatchProductsComponent() {
   );
 }
 
-/** Capacity of the first capacity-limited product, e.g. "KAPASITAS LUMPIA 126 / 200". */
+/** Units booked against the capacity of every capacity-limited product in the batch. */
 function capacityMetric(products: CatalogProduct[]) {
-  const limited = products.find((product) => product.capacity != null);
-  if (limited?.capacity != null) {
+  const limited = products.filter((product) => product.capacity != null);
+  if (limited.length > 0) {
+    const capacity = limited.reduce((total, product) => total + (product.capacity ?? 0), 0);
+    const sold = limited.reduce((total, product) => total + product.sold, 0);
+    const unlimited = products.length - limited.length;
     return {
-      label: `KAPASITAS ${limited.name.split(" ")[0]?.toUpperCase()}`,
-      value: `${limited.sold} / ${limited.capacity}`,
-      detail: `${Math.max(0, limited.capacity - limited.sold)} ${limited.unit} tersisa`,
+      label: "KAPASITAS BATCH",
+      value: `${sold} / ${capacity}`,
+      detail: `${Math.max(0, capacity - sold)} unit tersisa${unlimited > 0 ? ` · ${unlimited} produk tanpa batas` : ""}`,
     };
   }
   const sold = products.reduce((total, product) => total + product.sold, 0);
-  return { label: "KAPASITAS", value: "Tanpa batas", detail: `${sold} item terpesan` };
+  return { label: "KAPASITAS BATCH", value: "Tanpa batas", detail: `${sold} item terpesan` };
 }
 
 function BatchBanner({

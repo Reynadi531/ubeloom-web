@@ -1,8 +1,9 @@
 /** Server-only invoice logic behind the server fns in `./invoices`. */
-import { invoice } from "@web-kwu/db/schema/shop";
+import { invoice, orderEvent } from "@web-kwu/db/schema/shop";
 import { sql } from "drizzle-orm";
 
 import { getCurrentBatch } from "@/lib/batches.server";
+import { getShopSettings } from "@/lib/settings.server";
 import { fromDateInputValue, toDateInputValue } from "@/lib/format";
 import { db } from "@/services";
 
@@ -32,7 +33,7 @@ function summarize(items: { productName: string; quantity: number }[]) {
 
 /** Orders of the current batch (plus a preselected one from elsewhere) for the invoice form. */
 export async function loadInvoiceForm(orderId?: string) {
-  const current = await getCurrentBatch();
+  const [current, settings] = await Promise.all([getCurrentBatch(), getShopSettings()]);
   const orders = current
     ? await db.query.order.findMany({
         where: { batchId: current.id },
@@ -55,8 +56,9 @@ export async function loadInvoiceForm(orderId?: string) {
 
   return {
     batchName: current?.name ?? null,
+    brandName: settings.brandName,
     nextNumber: await nextInvoiceNumber(db, issuedOn.slice(0, 4)),
-    defaults: { issuedOn, dueOn },
+    defaults: { issuedOn, dueOn, memo: settings.invoiceMemo },
     selectedOrderId: selected?.id ?? null,
     orders: orders.map((row) => ({
       id: row.id,
@@ -105,6 +107,12 @@ export async function issueInvoice(data: CreateInvoiceData, actorId: string) {
             createdById: actorId,
           })
           .returning({ id: invoice.id, number: invoice.number });
+        await tx.insert(orderEvent).values({
+          orderId: relatedOrder.id,
+          type: "invoice_issued",
+          note: `Invoice ${number} diterbitkan`,
+          actorId,
+        });
         return created;
       });
     } catch (error) {

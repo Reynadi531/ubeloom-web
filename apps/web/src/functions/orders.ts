@@ -5,6 +5,7 @@ import { requireAuthMiddleware } from "@/middleware/auth";
 
 import {
   buildOrdersCsv,
+  attachProofToManualOrder,
   insertManualOrder,
   listOrdersPage,
   loadManualOrderForm,
@@ -44,14 +45,6 @@ export const orderListFiltersSchema = z.object({
 
 export type OrderListFilters = z.infer<typeof orderListFiltersSchema>;
 
-/** Payment methods offered on the manual order form. */
-export const manualPaymentMethods = [
-  "Transfer bank · BCA",
-  "Transfer bank · Mandiri",
-  "QRIS",
-  "Tunai",
-] as const;
-
 export const phoneSchema = z
   .string("Nomor WhatsApp wajib diisi.")
   .trim()
@@ -89,7 +82,12 @@ export const createOrderSchema = z
       )
       .min(1, "Tambahkan minimal satu item pesanan.")
       .max(50, "Terlalu banyak item dalam satu pesanan."),
-    paymentMethod: z.enum(manualPaymentMethods, "Pilih metode pembayaran."),
+    /** One of the methods from Pengaturan, or "Tunai"; checked on the server. */
+    paymentMethod: z
+      .string("Pilih metode pembayaran.")
+      .trim()
+      .min(1, "Pilih metode pembayaran.")
+      .max(60),
     /** Whole rupiah received; null when nothing has been paid yet. */
     amountReceived: z
       .number()
@@ -97,8 +95,6 @@ export const createOrderSchema = z
       .min(0, "Nominal tidak boleh negatif.")
       .max(1_000_000_000, "Nominal terlalu besar.")
       .nullable(),
-    /** Name of the attached proof file; files are not stored yet. */
-    proofFileName: z.string().trim().max(200).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.method === "delivery" && (value.address?.length ?? 0) < 5) {
@@ -145,3 +141,22 @@ export const createOrder = createServerFn({ method: "POST" })
   .middleware([requireAuthMiddleware])
   .validator(createOrderSchema)
   .handler(({ data, context }) => insertManualOrder(data, context.session.user.id));
+
+export const MAX_MANUAL_PROOF_BYTES = 10 * 1024 * 1024;
+
+/** Stores the proof file for a manual order's payment attempt (multipart). */
+export const attachManualProof = createServerFn({ method: "POST" })
+  .middleware([requireAuthMiddleware])
+  .validator((input: FormData) => {
+    if (!(input instanceof FormData)) throw new Error("Format unggahan tidak valid.");
+    return z
+      .object({
+        orderId: z.string().min(1),
+        file: z
+          .instanceof(File, { message: "Pilih file bukti." })
+          .refine((file) => file.size > 0, "Pilih file bukti.")
+          .refine((file) => file.size <= MAX_MANUAL_PROOF_BYTES, "Bukti transaksi maksimal 10 MB."),
+      })
+      .parse({ orderId: input.get("orderId"), file: input.get("file") });
+  })
+  .handler(({ data }) => attachProofToManualOrder(data.orderId, data.file));

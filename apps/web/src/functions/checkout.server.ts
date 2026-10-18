@@ -8,6 +8,8 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
 
 import { getPublicBatch } from "@/lib/batches.server";
+import { storeProof } from "@/lib/proof.server";
+import { getShopSettings } from "@/lib/settings.server";
 import {
   formatDayMonth,
   formatRupiah,
@@ -16,7 +18,7 @@ import {
   formatWindow,
 } from "@/lib/format";
 import { generateInvoiceNumber, type FulfillmentMethod, type PaymentStatus } from "@/lib/orders";
-import { db, storage } from "@/services";
+import { db } from "@/services";
 
 import {
   OrderError,
@@ -100,7 +102,7 @@ export async function loadCheckout() {
     areas.set(zone.name, area);
   }
 
-  const pickupLocation = current.pickupLocation || "Kampus ubeloom";
+  const pickupLocation = current.pickupLocation || "Lokasi pickup menyusul";
   return {
     batch: {
       id: current.id,
@@ -208,6 +210,7 @@ export async function loadInvoice(token: string) {
   if (!row) throw notFound();
 
   const latest = row.paymentAttempts[0];
+  const settings = await getShopSettings();
   const window =
     row.method === "pickup"
       ? row.pickupSlot && formatSlot(row.pickupSlot.startsAt, row.pickupSlot.endsAt)
@@ -217,6 +220,7 @@ export async function loadInvoice(token: string) {
 
   return {
     invoiceNumber: row.invoiceNumber,
+    merchantName: settings.qrisMerchantName,
     batchOpen: row.batch.status === "open",
     createdAt: formatFullDateTime(row.createdAt),
     customerName: row.customerName,
@@ -224,7 +228,7 @@ export async function loadInvoice(token: string) {
     destination:
       row.method === "delivery"
         ? [row.address, row.deliveryZone?.name].filter(Boolean).join(" · ")
-        : row.batch.pickupLocation || "Kampus ubeloom",
+        : row.batch.pickupLocation || "Lokasi pickup menyusul",
     recipient:
       row.method === "delivery" && row.recipientName
         ? `${row.recipientName} · ${row.recipientPhone ?? ""}`.trim()
@@ -255,20 +259,8 @@ export async function loadInvoice(token: string) {
   };
 }
 
-const proofTypes = {
-  "image/jpeg": { ext: "jpg", magic: [0xff, 0xd8, 0xff] },
-  "image/png": { ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
-} as const;
-
 /** Stores the proof in the private bucket and queues it for review in "Verifikasi bayar". */
 export async function insertProof(data: SubmitProofData) {
-  const bytes = new Uint8Array(await data.file.arrayBuffer());
-  const type = proofTypes[data.file.type as keyof typeof proofTypes];
-  // Trust the file's bytes, not the browser-supplied type.
-  if (!type || !type.magic.every((byte, index) => bytes[index] === byte)) {
-    throw new Error("Bukti harus berupa foto JPG atau PNG.");
-  }
-
   const target = await db.query.order.findFirst({
     where: { accessToken: data.token },
     columns: { id: true, invoiceNumber: true, total: true },
@@ -276,8 +268,7 @@ export async function insertProof(data: SubmitProofData) {
   if (!target) throw new Error("Invoice tidak ditemukan.");
 
   // Upload first so the transaction stays short; an orphaned object on failure is harmless.
-  const key = `payment-proofs/${target.id}/${crypto.randomUUID()}.${type.ext}`;
-  await storage.putObject(key, bytes, data.file.type);
+  const key = await storeProof(target.id, data.file, ["image/jpeg", "image/png"]);
 
   return db.transaction(async (tx) => {
     // Lock the order so concurrent submissions get distinct attempt numbers.

@@ -43,7 +43,7 @@ export function PageHeading({
   );
 }
 
-export function BatchStatusPill({ label = "BATCH OKTOBER · DIBUKA" }: { label?: string }) {
+export function BatchStatusPill({ label }: { label: string }) {
   return (
     <p className="flex items-center gap-[7px] rounded-full bg-vanilla px-[13px] py-[9px] font-data text-[10px] font-bold text-deep-ube">
       <span aria-hidden className="size-[7px] rounded-full bg-ube-pop" />

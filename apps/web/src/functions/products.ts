@@ -105,7 +105,7 @@ async function toStorefrontBatch(current: BatchRow): Promise<StorefrontBatch> {
     closesAtShort: formatDateTime(current.closesAt),
     pickupDate: firstSlot ? formatDayMonth(firstSlot.startsAt) : null,
     pickupDateLong: firstSlot ? formatShortDate(firstSlot.startsAt) : null,
-    pickupLocation: current.pickupLocation || "Kampus ubeloom",
+    pickupLocation: current.pickupLocation || "Lokasi pickup menyusul",
   };
 }
 

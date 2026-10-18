@@ -70,7 +70,6 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
 
     const now = new Date();
     const activeOrders = and(eq(order.batchId, b.id), ne(order.fulfillmentStatus, "cancelled"));
-    const notFinished = sql`${order.fulfillmentStatus} not in ('picked_up', 'delivered')`;
 
     const orderDay = sql<string>`to_char(${order.createdAt} at time zone 'Asia/Jakarta', 'YYYY-MM-DD')`;
 
@@ -81,16 +80,18 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
           paid: sql<number>`count(*) filter (where ${order.paymentStatus} = 'paid')`.mapWith(
             Number,
           ),
-          unpaid: sql<number>`count(*) filter (where ${order.paymentStatus} <> 'paid')`.mapWith(
-            Number,
-          ),
+          // Orders with a proof under review count under inReview only, never twice.
+          unpaid:
+            sql<number>`count(*) filter (where ${order.paymentStatus} = 'unpaid' and not ${inReviewSql})`.mapWith(
+              Number,
+            ),
           inReview: sql<number>`count(*) filter (where ${inReviewSql})`.mapWith(Number),
           readyDelivery:
             sql<number>`count(*) filter (where ${order.fulfillmentStatus} = 'ready_delivery')`.mapWith(
               Number,
             ),
           pickupScheduled:
-            sql<number>`count(*) filter (where ${order.paymentStatus} = 'paid' and ${order.method} = 'pickup' and ${notFinished})`.mapWith(
+            sql<number>`count(*) filter (where ${order.paymentStatus} = 'paid' and ${order.method} = 'pickup' and ${order.fulfillmentStatus} in ('pending', 'preparing', 'ready_pickup'))`.mapWith(
               Number,
             ),
           toDeliver:

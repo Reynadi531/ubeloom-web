@@ -16,6 +16,9 @@ export type FulfillmentStatus =
   | "cancelled";
 export type PaymentAttemptStatus = "pending" | "approved" | "rejected";
 
+/** Cash is always offered on manual orders; it skips the review queue. */
+export const CASH_PAYMENT_METHOD = "Tunai";
+
 export const methodLabels: Record<FulfillmentMethod, string> = {
   pickup: "Pickup",
   delivery: "Delivery",

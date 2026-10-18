@@ -22,7 +22,7 @@ function AuthLayout() {
 
   return (
     <div className="flex min-h-svh bg-white font-body text-ink">
-      <AdminSidebar userName={session.user.name} />
+      <AdminSidebar user={session.user} />
       <Outlet />
     </div>
   );

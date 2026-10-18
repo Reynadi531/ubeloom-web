@@ -10,7 +10,7 @@ import {
   paymentAttempt,
   pickupSlot,
 } from "@web-kwu/db/schema/shop";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { getCurrentBatch, resolveBatch } from "@/lib/batches.server";
 import {
@@ -22,6 +22,7 @@ import {
   toDateInputValue,
 } from "@/lib/format";
 import {
+  CASH_PAYMENT_METHOD,
   type FulfillmentMethod,
   type FulfillmentStatus,
   type PaymentStatus,
@@ -30,6 +31,8 @@ import {
   methodLabels,
   paymentStatusLabels,
 } from "@/lib/orders";
+import { storeProof } from "@/lib/proof.server";
+import { getShopSettings } from "@/lib/settings.server";
 import { db } from "@/services";
 
 import type { CreateOrderData, OrderListFilters, OrderTabKey } from "./orders";
@@ -43,7 +46,7 @@ type Executor = Pick<typeof db, "select">;
 
 export const ORDERS_PAGE_SIZE = 10;
 
-const PICKUP_FALLBACK = "Pickup di toko ubeloom";
+const PICKUP_FALLBACK = "Lokasi pickup belum diatur";
 
 async function loadBatchOrders(batchId: string) {
   return db.query.order.findMany({
@@ -344,8 +347,11 @@ export async function slotBookings(executor: Executor, slotIds: string[]) {
 }
 
 export async function loadManualOrderForm() {
-  const current = await getCurrentBatch();
-  if (!current) return { batch: null, products: [], pickupSlots: [], deliveryZones: [] };
+  const [current, settings] = await Promise.all([getCurrentBatch(), getShopSettings()]);
+  const paymentMethods = [...settings.paymentMethods, CASH_PAYMENT_METHOD];
+  if (!current) {
+    return { batch: null, products: [], pickupSlots: [], deliveryZones: [], paymentMethods };
+  }
 
   const [batchProducts, slots, zones] = await Promise.all([
     db.query.batchProduct.findMany({
@@ -380,6 +386,7 @@ export async function loadManualOrderForm() {
       isOpen: current.status === "open",
       pickupLocation: current.pickupLocation,
     },
+    paymentMethods,
     products: batchProducts
       .sort((a, b) => a.product.sortOrder - b.product.sortOrder)
       .map(({ product, price, capacity }) => ({
@@ -498,8 +505,6 @@ export async function priceOrder(
   return { lines, shippingFee: zone.fee, pickupSlotId: null, deliveryZoneId: zone.id };
 }
 
-const CASH = "Tunai";
-
 /**
  * Records an order taken outside checkout. Prices, fees and totals are recomputed here.
  *
@@ -511,6 +516,10 @@ const CASH = "Tunai";
  *   up in "Verifikasi bayar" like a customer-submitted proof.
  */
 export async function insertManualOrder(data: CreateOrderData, actorId: string) {
+  const { paymentMethods } = await getShopSettings();
+  if (![...paymentMethods, CASH_PAYMENT_METHOD].includes(data.paymentMethod)) {
+    throw new Error("Metode pembayaran tidak tersedia. Periksa Pengaturan.");
+  }
   const quantities = mergeQuantities(data.items);
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -530,7 +539,7 @@ export async function insertManualOrder(data: CreateOrderData, actorId: string) 
         const total = subtotal + shippingFee;
         const now = new Date();
         const amount = data.amountReceived && data.amountReceived > 0 ? data.amountReceived : null;
-        const isCash = data.paymentMethod === CASH;
+        const isCash = data.paymentMethod === CASH_PAYMENT_METHOD;
         if (isCash && amount !== null && amount < total) {
           throw new OrderError(
             `Nominal tunai ${formatRupiah(amount)} kurang dari total ${formatRupiah(total)}.`,
@@ -579,11 +588,8 @@ export async function insertManualOrder(data: CreateOrderData, actorId: string) 
             // Cash keeps only the total; any excess was handed back as change.
             claimedAmount: isCash ? total : amount,
             claimedPaidAt: now,
-            // Proof files are not stored yet; keep the file name for the reviewer.
             // Unique per order so the reuse check in approvePayment never matches another manual entry.
-            customerReference: data.proofFileName
-              ? `MANUAL-${created.invoiceNumber} · ${data.proofFileName}`
-              : `MANUAL-${created.invoiceNumber}`,
+            customerReference: `MANUAL-${created.invoiceNumber}`,
             status: isCash ? "approved" : "pending",
             merchantReference: isCash ? `TUNAI-${created.invoiceNumber}` : null,
             reviewNote: isCash ? "Pembayaran tunai diterima saat input manual." : null,
@@ -613,4 +619,18 @@ export async function insertManualOrder(data: CreateOrderData, actorId: string) 
     }
   }
   throw new Error("Gagal membuat nomor invoice unik. Silakan coba lagi.");
+}
+
+/** Attaches a stored proof to the manual order's latest payment attempt. */
+export async function attachProofToManualOrder(orderId: string, file: File) {
+  const [latest] = await db
+    .select({ id: paymentAttempt.id })
+    .from(paymentAttempt)
+    .where(eq(paymentAttempt.orderId, orderId))
+    .orderBy(desc(paymentAttempt.attempt))
+    .limit(1);
+  if (!latest) throw new Error("Isi nominal diterima untuk melampirkan bukti.");
+  const key = await storeProof(orderId, file, ["image/jpeg", "image/png", "application/pdf"]);
+  await db.update(paymentAttempt).set({ proofKey: key }).where(eq(paymentAttempt.id, latest.id));
+  return { ok: true };
 }

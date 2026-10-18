@@ -335,7 +335,7 @@ function OrdersComponent() {
 
       <p className="border-t border-ube-line pt-[15px] text-[11px] text-plum">
         Data kontak dan alamat hanya untuk pemenuhan pesanan. Ekspor bersifat admin-only dan
-        aktivitas tercatat di audit log.
+        tercatat di log server.
       </p>
     </AdminPage>
   );

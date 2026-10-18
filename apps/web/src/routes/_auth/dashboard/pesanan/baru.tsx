@@ -10,10 +10,11 @@ import {
   createOrder,
   createOrderSchema,
   getManualOrderForm,
-  manualPaymentMethods,
+  attachManualProof,
+  MAX_MANUAL_PROOF_BYTES,
 } from "@/functions/orders";
 import { formatRupiah } from "@/lib/format";
-import type { FulfillmentMethod } from "@/lib/orders";
+import { CASH_PAYMENT_METHOD, type FulfillmentMethod } from "@/lib/orders";
 
 export const Route = createFileRoute("/_auth/dashboard/pesanan/baru")({
   head: () => ({
@@ -24,11 +25,9 @@ export const Route = createFileRoute("/_auth/dashboard/pesanan/baru")({
 });
 
 const fulfillmentOptions: { value: FulfillmentMethod; label: string }[] = [
-  { value: "pickup", label: "Pickup di toko" },
+  { value: "pickup", label: "Pickup" },
   { value: "delivery", label: "Delivery" },
 ];
-
-const MAX_PROOF_BYTES = 10 * 1024 * 1024;
 
 const cardClassName = "flex flex-col rounded-xl border border-ube-line bg-white p-[18px]";
 const fieldLabelClassName = "text-[10px] font-bold text-plum";
@@ -46,7 +45,9 @@ function ManualOrderComponent() {
   const [scheduleId, setScheduleId] = useState("");
   const [address, setAddress] = useState("");
   const [items, setItems] = useState<{ id: string; quantity: number }[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<string>(manualPaymentMethods[0]);
+  const [paymentMethod, setPaymentMethod] = useState<string>(
+    form.paymentMethods[0] ?? CASH_PAYMENT_METHOD,
+  );
   /** Digits typed by the admin; undefined follows the order total. */
   const [amountInput, setAmountInput] = useState<string>();
   const [proof, setProof] = useState<File>();
@@ -75,7 +76,7 @@ function ManualOrderComponent() {
   const orderTotal = subtotal + shippingFee;
   const amountDigits = amountInput ?? (orderTotal > 0 ? String(orderTotal) : "");
   const amount = amountDigits ? Number(amountDigits) : null;
-  const isCash = paymentMethod === "Tunai";
+  const isCash = paymentMethod === CASH_PAYMENT_METHOD;
 
   const changeQuantity = (id: string, delta: number) =>
     setItems((current) =>
@@ -91,8 +92,12 @@ function ManualOrderComponent() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.batch) return;
-    if (proof && proof.size > MAX_PROOF_BYTES) {
+    if (proof && proof.size > MAX_MANUAL_PROOF_BYTES) {
       setErrors({ form: "Bukti transaksi maksimal 10 MB." });
+      return;
+    }
+    if (proof && amount === null) {
+      setErrors({ amountReceived: "Isi nominal diterima untuk melampirkan bukti." });
       return;
     }
     const input: CreateOrderInput = {
@@ -103,9 +108,8 @@ function ManualOrderComponent() {
       scheduleId,
       address: fulfillment === "delivery" ? address : undefined,
       items: items.map(({ id, quantity }) => ({ productId: id, quantity })),
-      paymentMethod: paymentMethod as CreateOrderInput["paymentMethod"],
+      paymentMethod,
       amountReceived: amount,
-      proofFileName: proof?.name,
     };
     const parsed = createOrderSchema.safeParse(input);
     if (!parsed.success) {
@@ -119,6 +123,15 @@ function ManualOrderComponent() {
     try {
       const created = await createOrder({ data: input });
       toast.success(`Pesanan ${created.invoiceNumber} tersimpan.`);
+      if (proof) {
+        const upload = new FormData();
+        upload.set("orderId", created.id);
+        upload.set("file", proof);
+        // The order already exists; a failed upload must not look like a failed order.
+        await attachManualProof({ data: upload }).catch((error: unknown) =>
+          toast.error(`Bukti gagal diunggah: ${serverErrorMessage(error)}`),
+        );
+      }
       await router.navigate({ to: "/dashboard/pesanan", search: { q: created.invoiceNumber } });
     } catch (error) {
       const message = serverErrorMessage(error);
@@ -335,7 +348,7 @@ function ManualOrderComponent() {
             <OverlaySelect
               label="Metode pembayaran"
               value={paymentMethod}
-              options={manualPaymentMethods}
+              options={form.paymentMethods}
               onChange={setPaymentMethod}
               className={`${inputClassName} flex items-center focus-within:border-ube-pop`}
             >

@@ -7,6 +7,7 @@ import {
   Menu,
   Package,
   ReceiptText,
+  Settings,
   Ticket,
   X,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { label: "Produksi & kirim", icon: Package, to: "/dashboard/produksi-kirim" },
   { label: "Batch & produk", icon: CalendarDays, to: "/dashboard/batch-produk" },
   { label: "Undian", icon: Ticket, to: "/dashboard/undian" },
+  { label: "Pengaturan", icon: Settings, to: "/dashboard/pengaturan" },
 ];
 
 const itemClassName =
@@ -52,7 +54,12 @@ function useSignOut() {
     });
 }
 
-export default function AdminSidebar({ userName }: { userName: string }) {
+interface SidebarUser {
+  name: string;
+  email: string;
+}
+
+export default function AdminSidebar({ user }: { user: SidebarUser }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -77,7 +84,7 @@ export default function AdminSidebar({ userName }: { userName: string }) {
   return (
     <>
       <aside className="sticky top-0 hidden h-svh w-[214px] shrink-0 border-r border-ube-line bg-vanilla lg:block print:hidden">
-        <SidebarContent userName={userName} />
+        <SidebarContent user={user} />
       </aside>
 
       <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-ube-line bg-vanilla px-5 py-3 lg:hidden print:hidden">
@@ -123,13 +130,13 @@ export default function AdminSidebar({ userName }: { userName: string }) {
         >
           <X className="size-5" />
         </button>
-        <SidebarContent userName={userName} onNavigate={() => setOpen(false)} />
+        <SidebarContent user={user} onNavigate={() => setOpen(false)} />
       </div>
     </>
   );
 }
 
-function SidebarContent({ userName, onNavigate }: { userName: string; onNavigate?: () => void }) {
+function SidebarContent({ user, onNavigate }: { user: SidebarUser; onNavigate?: () => void }) {
   const signOut = useSignOut();
 
   return (
@@ -166,8 +173,9 @@ function SidebarContent({ userName, onNavigate }: { userName: string; onNavigate
       </nav>
 
       <div className="mt-auto flex flex-col gap-[5px] border-t border-ube-line px-1 pt-4">
-        <p className="text-[10px] font-bold tracking-[1px] text-plum">ADMINISTRATOR</p>
-        <p className="truncate text-[13px] font-bold text-ink">{userName}</p>
+        <p className="text-[10px] font-bold tracking-[1px] text-plum">MASUK SEBAGAI</p>
+        <p className="truncate text-[13px] font-bold text-ink">{user.name}</p>
+        <p className="truncate text-[11px] text-plum">{user.email}</p>
         <button
           type="button"
           onClick={signOut}

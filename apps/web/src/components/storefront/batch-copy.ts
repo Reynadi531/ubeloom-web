@@ -2,7 +2,7 @@ import type { StorefrontBatch } from "@/functions/products";
 
 /** Storefront wording for the current batch, with fallbacks when no batch exists yet. */
 export function batchCopy(batch: StorefrontBatch | null) {
-  const pickupLocation = batch?.pickupLocation ?? "Kampus ubeloom";
+  const pickupLocation = batch?.pickupLocation ?? "Lokasi pickup menyusul";
   return {
     number: batch?.number ?? "01",
     open: batch?.open ?? false,
@@ -15,7 +15,7 @@ export function batchCopy(batch: StorefrontBatch | null) {
     /** "26 Okt 2026" */
     pickupDateLong: batch?.pickupDateLong ?? "Jadwal menyusul",
     pickupLocation,
-    /** "26 Okt · Kampus ubeloom" */
+    /** "26 Okt · Kampus Telkom, Bandung" */
     pickupSummary: batch?.pickupDate ? `${batch.pickupDate} · ${pickupLocation}` : pickupLocation,
   };
 }

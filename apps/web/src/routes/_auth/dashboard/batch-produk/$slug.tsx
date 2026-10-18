@@ -126,7 +126,16 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
       <LivePreview
         image={content.imageWideUrl || image}
         name={content.name}
-        collection={content.display.collection}
+        collection={
+          content.display.collection ||
+          `MENU  /  ${
+            data.batch?.status !== "open"
+              ? "PREORDER DITUTUP"
+              : availability.inBatch && availability.available
+                ? "TERSEDIA"
+                : "HABIS"
+          }`
+        }
         tagline={content.tagline}
         price={formatRupiah(previewPrice)}
         unit={content.unit}
@@ -332,7 +341,10 @@ function InfoTab({
             onChange={(value) => update("category", value)}
           />
         </Field>
-        <Field label="Harga per porsi" hint="Harga dasar; bisa diganti per batch di Ketersediaan.">
+        <Field
+          label={`Harga per ${content.unit}`}
+          hint="Harga dasar; bisa diganti per batch di Ketersediaan."
+        >
           <input
             value={formatRupiah(content.price)}
             inputMode="numeric"
@@ -799,7 +811,7 @@ function LivePreview({
         />
         <div className="flex flex-col gap-[9px] px-5 py-[19px]">
           <p className="text-[9px] font-bold tracking-[0.5px] whitespace-pre text-ube-pop">
-            {collection || "MENU  /  PREORDER DIBUKA"}
+            {collection}
           </p>
           <p className="font-display text-2xl/[1.2] font-bold break-words text-deep-ube">{name}</p>
           <p className="text-xs font-semibold text-ink">{tagline}</p>

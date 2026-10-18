@@ -35,8 +35,6 @@ type InvoiceDraft = {
   memo: string;
 };
 
-const DEFAULT_MEMO = "Terima kasih telah memilih Ube Pop!";
-
 /** Formats a `yyyy-mm-dd` input value as "24 Oktober 2026". */
 function formatDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "—";
@@ -63,7 +61,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
     customerEmail: initialOrder?.customerEmail ?? "",
     issuedOn: form.defaults.issuedOn,
     dueOn: form.defaults.dueOn,
-    memo: DEFAULT_MEMO,
+    memo: form.defaults.memo,
   });
   const [issuedNumber, setIssuedNumber] = useState<string>();
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -242,10 +240,11 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
               >
                 PRATINJAU DOKUMEN
               </h2>
-              <p className="text-[10px] whitespace-pre text-plum">{"A4  ·  1 halaman"}</p>
+              <p className="text-[10px] text-plum">Ukuran A4</p>
             </div>
 
             <InvoicePaper
+              brandName={form.brandName}
               invoice={invoice}
               number={issuedNumber ?? `${form.nextNumber} (DRAF)`}
               order={order}
@@ -281,8 +280,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
               </p>
             )}
             <p className="text-[10px] text-plum print:hidden">
-              PDF akan dibuat setelah detail invoice dikonfirmasi. Penerbitan tercatat di aktivitas
-              admin.
+              Simpan sebagai PDF lewat dialog cetak. Penerbitan tercatat di riwayat pesanan.
             </p>
           </section>
         </div>
@@ -292,17 +290,19 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
 }
 
 function InvoicePaper({
+  brandName,
   invoice,
   number,
   order,
 }: {
+  brandName: string;
   invoice: InvoiceDraft;
   number: string;
   order?: InvoiceOrder;
 }) {
   return (
     <article className="flex min-h-[500px] flex-col gap-[15px] rounded-[5px] bg-white p-[26px] text-ink shadow-[0_4px_16px_#321d2d18] print:shadow-none">
-      <p className="font-display text-[19px] font-bold text-deep-ube">UBE POP</p>
+      <p className="font-display text-[19px] font-bold text-deep-ube">{brandName.toUpperCase()}</p>
       <p className="text-2xl font-extrabold">INVOICE</p>
       <p className="text-[10px] font-bold break-all whitespace-pre-wrap text-plum">
         {`${number}     ·     ${formatDate(invoice.issuedOn).toUpperCase()}`}

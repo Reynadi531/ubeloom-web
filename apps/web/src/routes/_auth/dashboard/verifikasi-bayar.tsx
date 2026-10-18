@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { AlertTriangle, Check, Image, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, FileText, Image, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { PaymentReviewRow } from "@/components/admin/payment-review/payment-revi
 import { StatusBadge, type StatusTone } from "@/components/admin/status-badge";
 import {
   type PaymentReviewAttempt,
+  RECENT_REJECTION_DAYS,
   approvePayment,
   getPaymentReview,
   rejectPayment,
@@ -109,7 +110,7 @@ function errorMessage(error: unknown) {
 }
 
 function PaymentReviewComponent() {
-  const { batch, metrics, attempts, todayStart } = Route.useLoaderData();
+  const { batch, metrics, attempts, todayStart, merchantName } = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const [query, setQuery] = useState("");
@@ -121,15 +122,19 @@ function PaymentReviewComponent() {
       value: `${pendingCount} bukti`,
       detail:
         metrics.pendingBeforeToday > 0
-          ? `${metrics.pendingBeforeToday} perlu ditangani hari ini`
+          ? `${metrics.pendingBeforeToday} masuk sebelum hari ini`
           : "Semua masuk hari ini",
     },
     {
       label: "DISETUJUI HARI INI",
       value: String(metrics.approvedToday),
-      detail: "Mutasi merchant cocok",
+      detail: "Dengan referensi mutasi merchant",
     },
-    { label: "DITOLAK", value: String(metrics.rejected), detail: "Riwayat percobaan tersimpan" },
+    {
+      label: `DITOLAK · ${RECENT_REJECTION_DAYS} HARI`,
+      value: String(metrics.rejectedRecent),
+      detail: "Riwayat percobaan tersimpan",
+    },
   ];
 
   const normalizedQuery = query.trim().toLowerCase();
@@ -148,7 +153,7 @@ function PaymentReviewComponent() {
       <PageHeading
         eyebrow="UBELOOM  /  ADMIN  /  VERIFIKASI BAYAR"
         title="Verifikasi pembayaran"
-        description="Cocokkan bukti dengan mutasi QRIS merchant sebelum menyetujui."
+        description="Cocokkan bukti dengan mutasi QRIS merchant sebelum menyetujui. Antrean mencakup semua batch."
         actions={
           batch ? (
             <BatchStatusPill
@@ -174,7 +179,10 @@ function PaymentReviewComponent() {
         <section className="flex flex-col gap-[11px] xl:w-[350px] xl:shrink-0">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-extrabold text-ink">Antrean bukti bayar</h2>
-            <p className="text-[10px] font-bold text-deep-ube">{pendingCount} baru</p>
+            <p className="text-[10px] font-bold text-deep-ube">
+              {pendingCount} menunggu
+              {metrics.resubmitted > 0 && ` · ${metrics.resubmitted} kirim ulang`}
+            </p>
           </div>
           <label className="sr-only" htmlFor="payment-search">
             Cari invoice, pelanggan atau referensi
@@ -210,7 +218,7 @@ function PaymentReviewComponent() {
 
         {selected ? (
           // Keyed so the checklist and reference reset when another attempt is opened.
-          <PaymentDetail key={selected.id} attempt={selected} />
+          <PaymentDetail key={selected.id} attempt={selected} merchantName={merchantName} />
         ) : (
           <section
             className={`${cardClassName} flex min-h-[200px] min-w-0 flex-1 items-center justify-center p-5 text-[11px] text-plum`}
@@ -230,7 +238,13 @@ function PaymentReviewComponent() {
   );
 }
 
-function PaymentDetail({ attempt }: { attempt: PaymentReviewAttempt }) {
+function PaymentDetail({
+  attempt,
+  merchantName,
+}: {
+  attempt: PaymentReviewAttempt;
+  merchantName: string;
+}) {
   const router = useRouter();
   const [checked, setChecked] = useState<boolean[]>(() => checklist.map(() => false));
   const [merchantReference, setMerchantReference] = useState("");
@@ -258,7 +272,10 @@ function PaymentDetail({ attempt }: { attempt: PaymentReviewAttempt }) {
       "Diklaim dibayar",
       `${formatRupiah(attempt.claimedAmount)} · ${formatDayMonth(attempt.claimedPaidAt)} ${formatTime(attempt.claimedPaidAt)}`,
     ],
-    ["Merchant QRIS", "ubeloom · cocokkan nama"],
+    [
+      "Merchant QRIS",
+      merchantName ? `${merchantName} · cocokkan nama` : "Belum diatur di Pengaturan",
+    ],
     ["Ref. pelanggan", attempt.customerReference],
     ["Mutasi merchant", attempt.merchantReference ?? "Belum dikonfirmasi"],
     ["Metode pesanan", orderMethodLabel(order)],
@@ -328,11 +345,19 @@ function PaymentDetail({ attempt }: { attempt: PaymentReviewAttempt }) {
             rel="noreferrer"
             className="block h-[200px] overflow-hidden rounded-[9px] bg-vanilla sm:w-[215px] sm:shrink-0"
           >
-            <img
-              src={attempt.proofUrl}
-              alt={`Bukti bayar ${order.invoiceNumber}`}
-              className="size-full object-contain"
-            />
+            {new URL(attempt.proofUrl).pathname.endsWith(".pdf") ? (
+              <span className="flex size-full flex-col items-center justify-center gap-[9px]">
+                <FileText aria-hidden className="size-[26px] text-deep-ube" />
+                <span className="text-xs font-bold text-ink">Bukti PDF</span>
+                <span className="text-[10px] text-plum">Buka di tab baru</span>
+              </span>
+            ) : (
+              <img
+                src={attempt.proofUrl}
+                alt={`Bukti bayar ${order.invoiceNumber}`}
+                className="size-full object-contain"
+              />
+            )}
           </a>
         ) : (
           <div className="flex h-[200px] flex-col items-center justify-center gap-[9px] rounded-[9px] bg-vanilla sm:w-[215px] sm:shrink-0">

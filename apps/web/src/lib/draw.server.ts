@@ -9,7 +9,6 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 type Executor = Pick<Database, "select" | "update" | "insert" | "delete">;
 
 export const DEFAULT_ENTRY_RULE = "1 per invoice lunas + opt-in";
-export const DEFAULT_PRIZES = ["Paket ubeloom", "Voucher Rp 50.000", "Merchandise"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export class DrawError extends Error {}
@@ -68,7 +67,7 @@ export function getFreezeBlocker({
   return undefined;
 }
 
-/** Creates the draft draw for a batch with default rules and prizes. */
+/** Creates the draft draw for a batch with default rules; prizes are added by the admin. */
 export async function createDefaultDraw(db: Database, batchId: string) {
   return db.transaction(async (tx) => {
     const [b] = await tx.select().from(batch).where(eq(batch.id, batchId)).limit(1);
@@ -84,11 +83,6 @@ export async function createDefaultDraw(db: Database, batchId: string) {
       .onConflictDoNothing({ target: draw.batchId })
       .returning();
     if (!created) throw new DrawError("Undian untuk batch ini sudah ada.");
-    await tx
-      .insert(drawPrize)
-      .values(
-        DEFAULT_PRIZES.map((name, index) => ({ drawId: created.id, name, position: index + 1 })),
-      );
     return created;
   });
 }
@@ -190,6 +184,12 @@ export async function freezeDraw(
       now,
     });
     if (blocker) throw new DrawError(`Belum bisa dibekukan: ${blocker}.`);
+    const [{ prizeCount }] = await tx
+      .select({ prizeCount: sql<number>`count(*)`.mapWith(Number) })
+      .from(drawPrize)
+      .where(eq(drawPrize.drawId, drawId));
+    if (prizeCount === 0)
+      throw new DrawError("Belum bisa dibekukan: tambahkan minimal satu hadiah.");
 
     const pool = await tx
       .select({ invoiceNumber: order.invoiceNumber })

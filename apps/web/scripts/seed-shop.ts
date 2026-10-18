@@ -1,5 +1,6 @@
 /**
- * Seeds the shop catalog: products, batches, pickup slots and delivery zones.
+ * Seeds the shop catalog: products, batches, pickup slots and delivery windows, plus
+ * default delivery areas in shop settings when none are set.
  * Orders, payments, invoices and draws are never seeded; they only come from
  * real checkout and admin activity. Product photos are uploaded from public/images
  * to object storage, like photos added from the dashboard.
@@ -27,9 +28,10 @@ import {
   pickupSlot,
   product,
   type ProductDisplay,
+  shopSetting,
 } from "@web-kwu/db/schema/shop";
 import { createStorage } from "@web-kwu/storage";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { ENV } from "../src/env";
 
@@ -175,7 +177,7 @@ type BatchSetup = {
   /** Batch price per product (null = product price) and capacity. */
   products: Record<ProductKey, { price: number | null; capacity: number }>;
   slots: (typeof pickupSlot.$inferInsert & { id: string })[];
-  zones: (typeof deliveryZone.$inferInsert & { id: string; fee: number })[];
+  zones: (typeof deliveryZone.$inferInsert & { id: string })[];
 };
 
 function makeBatch(input: {
@@ -216,18 +218,16 @@ function makeBatch(input: {
       {
         id: crypto.randomUUID(),
         batchId: id,
-        name: "Bandung kota",
         windowStartsAt: wib(`${input.zoneDays[0]}T13:00`),
         windowEndsAt: wib(`${input.zoneDays[0]}T16:00`),
-        fee: 8_000,
+        areas: ["Bandung kota"],
       },
       {
         id: crypto.randomUUID(),
         batchId: id,
-        name: "Sekitar kampus",
         windowStartsAt: wib(`${input.zoneDays[1]}T09:00`),
         windowEndsAt: wib(`${input.zoneDays[1]}T12:00`),
-        fee: 5_000,
+        areas: ["Sekitar kampus"],
       },
     ],
   };
@@ -316,6 +316,17 @@ async function seed(tx: Tx) {
     await tx.insert(pickupSlot).values(setup.slots);
     await tx.insert(deliveryZone).values(setup.zones);
   }
+
+  // Delivery areas live in shop settings; only fill them when an admin has not.
+  const deliveryRates = [
+    { area: "Sekitar kampus", fee: 5_000 },
+    { area: "Bandung kota", fee: 8_000 },
+  ];
+  await tx.insert(shopSetting).values({ id: "default" }).onConflictDoNothing();
+  await tx
+    .update(shopSetting)
+    .set({ deliveryRates })
+    .where(and(eq(shopSetting.id, "default"), sql`${shopSetting.deliveryRates} = '[]'::jsonb`));
 }
 
 try {

@@ -156,6 +156,8 @@ export const getFulfillmentBoard = createServerFn({ method: "GET" })
             customerPhone: true,
             method: true,
             address: true,
+            deliveryArea: true,
+            courier: true,
             notes: true,
             paymentMethod: true,
             paymentStatus: true,
@@ -166,10 +168,8 @@ export const getFulfillmentBoard = createServerFn({ method: "GET" })
             paidAt: true,
           },
           with: {
-            pickupSlot: { columns: { startsAt: true, endsAt: true } },
-            deliveryZone: {
-              columns: { name: true, windowStartsAt: true, windowEndsAt: true },
-            },
+            pickupSlot: { columns: { startsAt: true, endsAt: true, location: true } },
+            deliveryZone: { columns: { windowStartsAt: true, windowEndsAt: true } },
             items: { columns: { productName: true, quantity: true } },
             events: {
               where: { type: "handover" },

@@ -69,6 +69,10 @@ export const createOrderSchema = z
     method: z.enum(["pickup", "delivery"], "Pilih metode pemenuhan."),
     scheduleId: z.string("Pilih jadwal pemenuhan.").min(1, "Pilih jadwal pemenuhan."),
     address: z.string().trim().max(300, "Alamat maksimal 300 karakter.").optional(),
+    /** Area name from Pengaturan; required for delivery, priced on the server. */
+    deliveryArea: z.string().trim().max(80).optional(),
+    /** Courier option name from Pengaturan; required on the server when any exist. */
+    courier: z.string().trim().max(60).optional(),
     items: z
       .array(
         z.object({
@@ -97,6 +101,9 @@ export const createOrderSchema = z
       .nullable(),
   })
   .superRefine((value, ctx) => {
+    if (value.method === "delivery" && !value.deliveryArea) {
+      ctx.addIssue({ code: "custom", path: ["deliveryArea"], message: "Pilih area tujuan." });
+    }
     if (value.method === "delivery" && (value.address?.length ?? 0) < 5) {
       ctx.addIssue({
         code: "custom",

@@ -54,7 +54,7 @@ const textActionClassName =
   "w-fit text-[11px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop";
 
 function BatchProductsComponent() {
-  const { current, products } = Route.useLoaderData();
+  const { current, products, deliveryAreas } = Route.useLoaderData();
   const [dialog, setDialog] = useState<Dialog>(null);
   const close = () => setDialog(null);
 
@@ -139,17 +139,25 @@ function BatchProductsComponent() {
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <section className={`${cardClassName} flex flex-col gap-[13px] p-5`}>
-          <h2 className="text-[17px]/[1.25] font-extrabold text-ink">Slot pickup</h2>
-          <p className="text-[11px] text-plum">Lokasi: {batch.pickupLocation || "belum diatur"}</p>
+          <h2 className="text-[17px]/[1.25] font-extrabold text-ink">
+            Slot pickup
+            {!batch.pickupEnabled && <MethodOffBadge />}
+          </h2>
+          <p className="text-[11px] text-plum">
+            Lokasi utama: {batch.pickupLocation || "belum diatur"}
+          </p>
           <ul className="flex flex-col gap-[13px]">
             {slots.map((slot) => (
               <li
                 key={slot.id}
                 className="flex items-center justify-between gap-3 rounded-lg bg-vanilla px-3 py-[11px]"
               >
-                <span className="text-[11px] font-bold text-ink">
-                  {formatWeekday(slot.startsAt)}, {formatWindow(slot.startsAt, slot.endsAt)}
-                </span>
+                <div className="flex flex-col gap-[3px]">
+                  <span className="text-[11px] font-bold text-ink">
+                    {formatWeekday(slot.startsAt)}, {formatWindow(slot.startsAt, slot.endsAt)}
+                  </span>
+                  {slot.location && <span className="text-[10px] text-plum">{slot.location}</span>}
+                </div>
                 <span className="shrink-0 text-[10px] font-bold text-deep-ube">
                   {slot.filled} / {slot.capacity} terisi{slot.active ? "" : " · nonaktif"}
                 </span>
@@ -160,41 +168,49 @@ function BatchProductsComponent() {
             )}
           </ul>
           <button type="button" onClick={() => setDialog("slots")} className={textActionClassName}>
-            {"Kelola slot & kapasitas  →"}
+            {"Kelola slot, lokasi & kapasitas  →"}
           </button>
         </section>
 
         <section className={`${cardClassName} flex flex-col gap-[13px] p-5`}>
-          <h2 className="text-[17px]/[1.25] font-extrabold text-ink">Area &amp; jadwal delivery</h2>
+          <h2 className="text-[17px]/[1.25] font-extrabold text-ink">
+            Jadwal delivery
+            {!batch.deliveryEnabled && <MethodOffBadge />}
+          </h2>
           <p className="text-[11px] text-plum">
-            Ongkir dihitung dan ditampilkan sebelum invoice dibuat.
+            Area tujuan &amp; ongkir:{" "}
+            <Link to="/dashboard/pengaturan" className="font-bold text-deep-ube hover:text-ube-pop">
+              {deliveryAreas.length > 0
+                ? `${deliveryAreas.length} area di Pengaturan`
+                : "atur di Pengaturan"}
+            </Link>
           </p>
           <ul className="flex flex-col gap-[13px]">
             {zones.map((zone) => (
               <li
                 key={zone.id}
-                className="flex items-center justify-between gap-3 rounded-lg bg-vanilla px-3 py-2.5"
+                className="flex items-center justify-between gap-3 rounded-lg bg-vanilla px-3 py-[11px]"
               >
                 <div className="flex flex-col gap-[3px]">
                   <span className="text-[11px] font-bold text-ink">
-                    {zone.name}
-                    {zone.active ? "" : " · nonaktif"}
-                  </span>
-                  <span className="text-[10px] text-plum">
+                    {formatWeekday(zone.windowStartsAt)},{" "}
                     {formatWindow(zone.windowStartsAt, zone.windowEndsAt)}
                   </span>
+                  <span className="text-[10px] text-plum">
+                    {zone.areas.length > 0 ? zone.areas.join(", ") : "Semua area"}
+                  </span>
                 </div>
-                <span className="shrink-0 text-xs font-extrabold text-deep-ube">
-                  {formatRupiah(zone.fee)}
-                </span>
+                {!zone.active && (
+                  <span className="shrink-0 text-[10px] font-bold text-deep-ube">nonaktif</span>
+                )}
               </li>
             ))}
             {zones.length === 0 && (
-              <li className="text-[11px] text-plum">Belum ada area delivery.</li>
+              <li className="text-[11px] text-plum">Belum ada jadwal delivery.</li>
             )}
           </ul>
           <button type="button" onClick={() => setDialog("zones")} className={textActionClassName}>
-            {"Kelola zona, ongkir & kapasitas  →"}
+            {"Kelola jadwal delivery  →"}
           </button>
         </section>
       </div>
@@ -216,14 +232,24 @@ function BatchProductsComponent() {
         onClose={close}
         batchId={batch.id}
         slots={slots}
+        defaultLocation={batch.pickupLocation}
       />
       <DeliveryZonesDialog
         open={dialog === "zones"}
         onClose={close}
         batchId={batch.id}
         zones={zones}
+        deliveryAreas={deliveryAreas}
       />
     </AdminPage>
+  );
+}
+
+function MethodOffBadge() {
+  return (
+    <span className="ml-2 rounded-full bg-vanilla px-2 py-0.5 align-middle text-[10px] font-bold text-plum">
+      Nonaktif · atur di pengaturan batch
+    </span>
   );
 }
 

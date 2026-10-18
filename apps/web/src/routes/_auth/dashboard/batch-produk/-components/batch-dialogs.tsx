@@ -95,6 +95,8 @@ function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: 
       batch?.paymentCutoffAt ?? new Date(now.getTime() + 7 * 864e5),
     ),
     pickupLocation: batch?.pickupLocation ?? "",
+    pickupEnabled: batch?.pickupEnabled ?? true,
+    deliveryEnabled: batch?.deliveryEnabled ?? true,
   });
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -168,6 +170,30 @@ function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: 
           />
         </Field>
       </div>
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-1.5 text-[11px] font-bold text-ink">Cara pengiriman</legend>
+        <label className="flex items-center gap-1.5 text-[11px] font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={form.pickupEnabled}
+            onChange={(event) => update("pickupEnabled", event.target.checked)}
+            className={checkboxClassName}
+          />
+          Ambil sendiri (pickup)
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={form.deliveryEnabled}
+            onChange={(event) => update("deliveryEnabled", event.target.checked)}
+            className={checkboxClassName}
+          />
+          Diantar (delivery)
+        </label>
+        <span className="text-[10px] text-plum">
+          Cara yang dimatikan tidak bisa dipilih di checkout maupun pesanan manual.
+        </span>
+      </fieldset>
       <div className="flex justify-end">
         <button type="submit" disabled={pending} className={primaryButtonClassName}>
           {batch ? "Simpan pengaturan" : "Buat batch"}
@@ -186,31 +212,51 @@ export function PickupSlotsDialog({
   onClose,
   batchId,
   slots,
+  defaultLocation,
 }: {
   open: boolean;
   onClose: () => void;
   batchId: string;
   slots: SlotRow[];
+  /** Batch pickup location used by slots without their own. */
+  defaultLocation: string;
 }) {
   return (
     <AdminDialog
       open={open}
       onClose={onClose}
       title="Slot pickup & kapasitas"
-      description="Slot nonaktif tidak bisa dipilih pelanggan. Slot yang sudah dipakai pesanan tidak bisa dihapus."
-      className="w-[min(760px,calc(100vw-32px))]"
+      description="Kosongkan lokasi untuk memakai lokasi pickup batch. Slot nonaktif tidak bisa dipilih pelanggan. Slot yang sudah dipakai pesanan tidak bisa dihapus."
+      className="w-[min(960px,calc(100vw-32px))]"
     >
       <ul className="flex flex-col gap-2.5">
         {slots.map((slot) => (
-          <PickupSlotForm key={slot.id} batchId={batchId} slot={slot} />
+          <PickupSlotForm
+            key={slot.id}
+            batchId={batchId}
+            slot={slot}
+            defaultLocation={defaultLocation}
+          />
         ))}
-        <PickupSlotForm key={`new-${slots.length}`} batchId={batchId} />
+        <PickupSlotForm
+          key={`new-${slots.length}`}
+          batchId={batchId}
+          defaultLocation={defaultLocation}
+        />
       </ul>
     </AdminDialog>
   );
 }
 
-function PickupSlotForm({ batchId, slot }: { batchId: string; slot?: SlotRow }) {
+function PickupSlotForm({
+  batchId,
+  slot,
+  defaultLocation,
+}: {
+  batchId: string;
+  slot?: SlotRow;
+  defaultLocation: string;
+}) {
   const run = useMutationRunner();
   const [pending, setPending] = useState(false);
   const base = slot?.startsAt ?? new Date();
@@ -218,6 +264,7 @@ function PickupSlotForm({ batchId, slot }: { batchId: string; slot?: SlotRow }) 
     date: toDateValue(base),
     start: slot ? toTimeValue(slot.startsAt) : "10:00",
     end: slot ? toTimeValue(slot.endsAt) : "12:00",
+    location: slot?.location ?? "",
     capacity: String(slot?.capacity ?? 50),
     active: slot?.active ?? true,
   });
@@ -231,6 +278,7 @@ function PickupSlotForm({ batchId, slot }: { batchId: string; slot?: SlotRow }) 
       batchId,
       startsAt: fromWib(form.date, form.start),
       endsAt: fromWib(form.date, form.end),
+      location: form.location,
       capacity: parseOptionalInt(form.capacity) ?? 0,
       active: form.active,
     });
@@ -280,6 +328,15 @@ function PickupSlotForm({ batchId, slot }: { batchId: string; slot?: SlotRow }) 
             required
           />
         </Field>
+        <Field label="Lokasi">
+          <input
+            value={form.location}
+            maxLength={160}
+            placeholder={defaultLocation || "Lokasi batch"}
+            onChange={(event) => update("location", event.target.value)}
+            className={`${inputClassName} w-[180px]`}
+          />
+        </Field>
         <Field label="Kapasitas">
           <input
             inputMode="numeric"
@@ -324,7 +381,7 @@ function PickupSlotForm({ batchId, slot }: { batchId: string; slot?: SlotRow }) 
 }
 
 // ---------------------------------------------------------------------------
-// Delivery zones
+// Delivery windows
 // ---------------------------------------------------------------------------
 
 export function DeliveryZonesDialog({
@@ -332,39 +389,58 @@ export function DeliveryZonesDialog({
   onClose,
   batchId,
   zones,
+  deliveryAreas,
 }: {
   open: boolean;
   onClose: () => void;
   batchId: string;
   zones: ZoneRow[];
+  /** Area names from Pengaturan a window can be limited to. */
+  deliveryAreas: string[];
 }) {
   return (
     <AdminDialog
       open={open}
       onClose={onClose}
-      title="Area, jadwal & ongkir delivery"
-      description="Ongkir tampil ke pelanggan sebelum invoice dibuat. Area yang sudah dipakai pesanan tidak bisa dihapus."
+      title="Jadwal delivery"
+      description="Centang area yang dilayani tiap jadwal; tanpa centang = semua area. Area tujuan dan ongkir diatur di Pengaturan. Jadwal yang sudah dipakai pesanan tidak bisa dihapus."
       className="w-[min(860px,calc(100vw-32px))]"
     >
       <ul className="flex flex-col gap-2.5">
         {zones.map((zone) => (
-          <DeliveryZoneForm key={zone.id} batchId={batchId} zone={zone} />
+          <DeliveryZoneForm
+            key={zone.id}
+            batchId={batchId}
+            zone={zone}
+            deliveryAreas={deliveryAreas}
+          />
         ))}
-        <DeliveryZoneForm key={`new-${zones.length}`} batchId={batchId} />
+        <DeliveryZoneForm
+          key={`new-${zones.length}`}
+          batchId={batchId}
+          deliveryAreas={deliveryAreas}
+        />
       </ul>
     </AdminDialog>
   );
 }
 
-function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }) {
+function DeliveryZoneForm({
+  batchId,
+  zone,
+  deliveryAreas,
+}: {
+  batchId: string;
+  zone?: ZoneRow;
+  deliveryAreas: string[];
+}) {
   const run = useMutationRunner();
   const [pending, setPending] = useState(false);
   const [form, setForm] = useState({
-    name: zone?.name ?? "",
     date: toDateValue(zone?.windowStartsAt ?? new Date()),
     start: zone ? toTimeValue(zone.windowStartsAt) : "13:00",
     end: zone ? toTimeValue(zone.windowEndsAt) : "16:00",
-    fee: zone ? String(zone.fee) : "",
+    areas: zone?.areas ?? [],
     active: zone?.active ?? true,
   });
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
@@ -375,17 +451,16 @@ function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }
     const parsed = saveDeliveryZoneSchema.safeParse({
       id: zone?.id,
       batchId,
-      name: form.name,
       windowStartsAt: fromWib(form.date, form.start),
       windowEndsAt: fromWib(form.date, form.end),
-      fee: parseOptionalInt(form.fee) ?? 0,
+      areas: form.areas,
       active: form.active,
     });
     if (!parsed.success) return void toast.error(firstIssue(parsed.error));
     setPending(true);
     await run(
       () => saveDeliveryZone({ data: parsed.data }),
-      zone ? "Area delivery disimpan" : "Area delivery ditambahkan",
+      zone ? "Jadwal delivery disimpan" : "Jadwal delivery ditambahkan",
     );
     setPending(false);
   };
@@ -393,21 +468,13 @@ function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }
   const remove = async () => {
     if (!zone) return;
     setPending(true);
-    await run(() => deleteDeliveryZone({ data: { id: zone.id } }), "Area delivery dihapus");
+    await run(() => deleteDeliveryZone({ data: { id: zone.id } }), "Jadwal delivery dihapus");
     setPending(false);
   };
 
   return (
     <li className="rounded-lg bg-vanilla px-3 py-2.5">
       <form onSubmit={submit} className="flex flex-wrap items-end gap-2.5">
-        <Field label="Nama area">
-          <input
-            value={form.name}
-            onChange={(event) => update("name", event.target.value)}
-            className={`${inputClassName} w-[150px]`}
-            required
-          />
-        </Field>
         <Field label="Tanggal">
           <input
             type="date"
@@ -435,15 +502,6 @@ function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }
             required
           />
         </Field>
-        <Field label="Ongkir (Rp)">
-          <input
-            inputMode="numeric"
-            value={form.fee}
-            placeholder="0"
-            onChange={(event) => update("fee", event.target.value)}
-            className={`${inputClassName} w-[92px]`}
-          />
-        </Field>
         <label className="flex h-[41px] items-center gap-1.5 text-[11px] font-bold text-ink">
           <input
             type="checkbox"
@@ -455,7 +513,7 @@ function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }
         </label>
         <div className="ml-auto flex h-[41px] items-center gap-2">
           <button type="submit" disabled={pending} className={secondaryButtonClassName}>
-            {zone ? "Simpan" : "+ Tambah area"}
+            {zone ? "Simpan" : "+ Tambah jadwal"}
           </button>
           {zone && (
             <button
@@ -468,6 +526,30 @@ function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }
             </button>
           )}
         </div>
+        <fieldset className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5">
+          <legend className="sr-only">Area dilayani</legend>
+          <span className="text-[11px] font-bold text-ink">Area:</span>
+          {[...new Set([...deliveryAreas, ...form.areas])].map((area) => (
+            <label key={area} className="flex items-center gap-1.5 text-[11px] text-ink">
+              <input
+                type="checkbox"
+                checked={form.areas.includes(area)}
+                onChange={(event) =>
+                  update(
+                    "areas",
+                    event.target.checked
+                      ? [...form.areas, area]
+                      : form.areas.filter((name) => name !== area),
+                  )
+                }
+                className={checkboxClassName}
+              />
+              {area}
+              {!deliveryAreas.includes(area) && " (tidak ada di Pengaturan)"}
+            </label>
+          ))}
+          {form.areas.length === 0 && <span className="text-[10px] text-plum">Semua area</span>}
+        </fieldset>
       </form>
     </li>
   );

@@ -105,7 +105,6 @@ export const getPaymentReview = createServerFn({ method: "GET" })
           },
           with: {
             pickupSlot: { columns: { startsAt: true, endsAt: true } },
-            deliveryZone: { columns: { name: true } },
           },
         },
         reviewedBy: { columns: { name: true } },

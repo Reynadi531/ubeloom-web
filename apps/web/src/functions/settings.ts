@@ -7,6 +7,16 @@ import { deleteImages, storeImage } from "@/lib/product-images.server";
 import { getShopSettings, replaceQrisImage, saveShopSettings } from "@/lib/settings.server";
 import { requireAuthMiddleware } from "@/middleware/auth";
 
+const feeSchema = z
+  .number("Ongkir wajib diisi.")
+  .int("Ongkir harus bilangan bulat.")
+  .min(0, "Ongkir tidak boleh negatif.")
+  .max(1_000_000, "Ongkir maksimal Rp 1.000.000.");
+
+/** Case-insensitive uniqueness check for lists edited in Pengaturan. */
+const uniqueNames = (names: string[]) =>
+  new Set(names.map((name) => name.toLowerCase())).size === names.length;
+
 export const shopSettingsSchema = z.object({
   brandName: z
     .string()
@@ -33,6 +43,36 @@ export const shopSettingsSchema = z.object({
         message: "Metode bayar tidak boleh ganda.",
       },
     ),
+  deliveryRates: z
+    .array(
+      z.object({
+        area: z
+          .string()
+          .trim()
+          .min(1, "Nama area tidak boleh kosong.")
+          .max(80, "Nama area maksimal 80 karakter."),
+        fee: feeSchema,
+      }),
+    )
+    .max(30, "Maksimal 30 tarif area.")
+    .refine((rates) => uniqueNames(rates.map(({ area }) => area)), {
+      message: "Nama area tidak boleh ganda.",
+    }),
+  couriers: z
+    .array(
+      z.object({
+        name: z
+          .string()
+          .trim()
+          .min(1, "Nama kurir tidak boleh kosong.")
+          .max(60, "Nama kurir maksimal 60 karakter."),
+        fee: feeSchema,
+      }),
+    )
+    .max(10, "Maksimal 10 opsi kurir.")
+    .refine((options) => uniqueNames(options.map(({ name }) => name)), {
+      message: "Nama kurir tidak boleh ganda.",
+    }),
   invoiceMemo: z.string().trim().max(300, "Catatan invoice maksimal 300 karakter."),
 });
 

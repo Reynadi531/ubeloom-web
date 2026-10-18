@@ -25,6 +25,10 @@ export const placeOrderSchema = z
     address: z.string().trim().max(300, "Alamat maksimal 300 karakter.").optional(),
     recipientName: z.string().trim().max(100, "Nama penerima maksimal 100 karakter.").optional(),
     recipientPhone: z.string().trim().optional(),
+    /** Area name from Pengaturan; required for delivery, priced on the server. */
+    deliveryArea: z.string().trim().max(80).optional(),
+    /** Courier option name from Pengaturan; required on the server when any exist. */
+    courier: z.string().trim().max(60).optional(),
     items: z
       .array(
         z.object({
@@ -44,6 +48,9 @@ export const placeOrderSchema = z
   })
   .superRefine((value, ctx) => {
     if (value.method !== "delivery") return;
+    if (!value.deliveryArea) {
+      ctx.addIssue({ code: "custom", path: ["deliveryArea"], message: "Pilih area tujuan." });
+    }
     if ((value.address?.length ?? 0) < 10) {
       ctx.addIssue({ code: "custom", path: ["address"], message: "Alamat lengkap wajib diisi." });
     }

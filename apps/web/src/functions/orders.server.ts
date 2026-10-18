@@ -30,6 +30,7 @@ import {
   generateInvoiceNumber,
   methodLabels,
   paymentStatusLabels,
+  windowServesArea,
 } from "@/lib/orders";
 import { storeProof } from "@/lib/proof.server";
 import { getShopSettings } from "@/lib/settings.server";
@@ -77,8 +78,8 @@ function toOrderView(row: LoadedOrder, orderBatch: BatchRow) {
   const schedule = scheduleOf(row);
   const destination =
     row.method === "delivery"
-      ? [row.address, row.deliveryZone?.name].filter(Boolean).join(" · ") || "—"
-      : orderBatch.pickupLocation || PICKUP_FALLBACK;
+      ? [row.address, row.deliveryArea, row.courier].filter(Boolean).join(" · ") || "—"
+      : row.pickupSlot?.location || orderBatch.pickupLocation || PICKUP_FALLBACK;
   return {
     id: row.id,
     invoiceNumber: row.invoiceNumber,
@@ -349,8 +350,18 @@ export async function slotBookings(executor: Executor, slotIds: string[]) {
 export async function loadManualOrderForm() {
   const [current, settings] = await Promise.all([getCurrentBatch(), getShopSettings()]);
   const paymentMethods = [...settings.paymentMethods, CASH_PAYMENT_METHOD];
+  const { couriers } = settings;
+  const deliveryAreas = settings.deliveryRates.map(({ area, fee }) => ({ name: area, fee }));
   if (!current) {
-    return { batch: null, products: [], pickupSlots: [], deliveryZones: [], paymentMethods };
+    return {
+      batch: null,
+      products: [],
+      pickupSlots: [],
+      deliveryWindows: [],
+      deliveryAreas,
+      paymentMethods,
+      couriers,
+    };
   }
 
   const [batchProducts, slots, zones] = await Promise.all([
@@ -358,14 +369,19 @@ export async function loadManualOrderForm() {
       where: { batchId: current.id, available: true },
       with: { product: true },
     }),
-    db.query.pickupSlot.findMany({
-      where: { batchId: current.id, active: true },
-      orderBy: { startsAt: "asc" },
-    }),
-    db.query.deliveryZone.findMany({
-      where: { batchId: current.id, active: true },
-      orderBy: { windowStartsAt: "asc" },
-    }),
+    // A disabled method offers no schedules, so the form cannot select it.
+    current.pickupEnabled
+      ? db.query.pickupSlot.findMany({
+          where: { batchId: current.id, active: true },
+          orderBy: { startsAt: "asc" },
+        })
+      : [],
+    current.deliveryEnabled
+      ? db.query.deliveryZone.findMany({
+          where: { batchId: current.id, active: true },
+          orderBy: { windowStartsAt: "asc" },
+        })
+      : [],
   ]);
   const [ordered, booked] = await Promise.all([
     orderedQuantities(
@@ -385,8 +401,11 @@ export async function loadManualOrderForm() {
       name: current.name,
       isOpen: current.status === "open",
       pickupLocation: current.pickupLocation,
+      pickupEnabled: current.pickupEnabled,
+      deliveryEnabled: current.deliveryEnabled,
     },
     paymentMethods,
+    couriers,
     products: batchProducts
       .sort((a, b) => a.product.sortOrder - b.product.sortOrder)
       .map(({ product, price, capacity }) => ({
@@ -396,16 +415,18 @@ export async function loadManualOrderForm() {
         remaining:
           capacity === null ? null : Math.max(0, capacity - (ordered.get(product.id) ?? 0)),
       })),
-    pickupSlots: slots.map(({ id, startsAt, endsAt, capacity }) => ({
+    pickupSlots: slots.map(({ id, startsAt, endsAt, location, capacity }) => ({
       id,
       label: `${formatWeekday(startsAt)} ${formatWindow(startsAt, endsAt)}`,
+      location: location || current.pickupLocation,
       remaining: Math.max(0, capacity - (booked.get(id) ?? 0)),
     })),
-    deliveryZones: zones.map(({ id, name, windowStartsAt, windowEndsAt, fee }) => ({
+    deliveryWindows: zones.map(({ id, windowStartsAt, windowEndsAt, areas }) => ({
       id,
-      label: `${name} · ${formatWeekday(windowStartsAt)} ${formatWindow(windowStartsAt, windowEndsAt)} · ongkir ${formatRupiah(fee)}`,
-      fee,
+      label: `${formatWeekday(windowStartsAt)} ${formatWindow(windowStartsAt, windowEndsAt)}`,
+      areas,
     })),
+    deliveryAreas,
   };
 }
 
@@ -445,7 +466,8 @@ export async function lockOpenBatch(tx: Transaction, batchId: string) {
 
 /**
  * Prices an order inside a transaction holding the batch lock: checks availability and
- * capacity, snapshots unit prices, and resolves the pickup slot or delivery zone fee.
+ * capacity, snapshots unit prices, and resolves the pickup slot, or the delivery window
+ * with ongkir = area rate + courier fee (both from Pengaturan).
  */
 export async function priceOrder(
   tx: Transaction,
@@ -453,7 +475,15 @@ export async function priceOrder(
   quantities: Map<string, number>,
   method: FulfillmentMethod,
   scheduleId: string,
+  delivery: { area?: string; courier?: string } = {},
 ) {
+  if (method === "pickup" ? !lockedBatch.pickupEnabled : !lockedBatch.deliveryEnabled) {
+    throw new OrderError(
+      method === "pickup"
+        ? "Ambil sendiri tidak tersedia untuk batch ini."
+        : "Delivery tidak tersedia untuk batch ini.",
+    );
+  }
   const productIds = [...quantities.keys()];
   const batchProducts = await tx.query.batchProduct.findMany({
     where: { batchId: lockedBatch.id, productId: { in: productIds } },
@@ -495,14 +525,40 @@ export async function priceOrder(
     if (!slot || !slot.active) throw new OrderError("Jadwal pickup tidak tersedia.");
     const booked = (await slotBookings(tx, [slot.id])).get(slot.id) ?? 0;
     if (booked >= slot.capacity) throw new OrderError("Slot pickup ini sudah penuh.");
-    return { lines, shippingFee: 0, pickupSlotId: slot.id, deliveryZoneId: null };
+    return {
+      lines,
+      shippingFee: 0,
+      pickupSlotId: slot.id,
+      deliveryZoneId: null,
+      deliveryArea: null,
+      courier: null,
+    };
   }
 
   const zone = await tx.query.deliveryZone.findFirst({
     where: { id: scheduleId, batchId: lockedBatch.id },
   });
   if (!zone || !zone.active) throw new OrderError("Jadwal delivery tidak tersedia.");
-  return { lines, shippingFee: zone.fee, pickupSlotId: null, deliveryZoneId: zone.id };
+
+  const { deliveryRates, couriers } = await getShopSettings();
+  const rate = deliveryRates.find(({ area }) => area === delivery.area);
+  if (!rate) throw new OrderError("Area tujuan tidak tersedia. Pilih area lain.");
+  if (!windowServesArea(zone.areas, rate.area)) {
+    throw new OrderError(`Jadwal delivery ini tidak melayani area ${rate.area}.`);
+  }
+  let courier: (typeof couriers)[number] | undefined;
+  if (couriers.length > 0) {
+    courier = couriers.find(({ name }) => name === delivery.courier);
+    if (!courier) throw new OrderError("Pilih kurir pengiriman.");
+  }
+  return {
+    lines,
+    shippingFee: rate.fee + (courier?.fee ?? 0),
+    pickupSlotId: null,
+    deliveryZoneId: zone.id,
+    deliveryArea: rate.area,
+    courier: courier?.name ?? null,
+  };
 }
 
 /**
@@ -527,13 +583,11 @@ export async function insertManualOrder(data: CreateOrderData, actorId: string) 
       return await db.transaction(async (tx) => {
         const lockedBatch = await lockOpenBatch(tx, data.batchId);
 
-        const { lines, shippingFee, pickupSlotId, deliveryZoneId } = await priceOrder(
-          tx,
-          lockedBatch,
-          quantities,
-          data.method,
-          data.scheduleId,
-        );
+        const { lines, shippingFee, pickupSlotId, deliveryZoneId, deliveryArea, courier } =
+          await priceOrder(tx, lockedBatch, quantities, data.method, data.scheduleId, {
+            area: data.deliveryArea,
+            courier: data.courier,
+          });
 
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
         const total = subtotal + shippingFee;
@@ -558,7 +612,9 @@ export async function insertManualOrder(data: CreateOrderData, actorId: string) 
             method: data.method,
             pickupSlotId,
             deliveryZoneId,
+            deliveryArea,
             address: data.method === "delivery" ? data.address : null,
+            courier,
             paymentMethod: data.paymentMethod,
             paymentStatus,
             subtotal,

@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { getCurrentBatch } from "@/lib/batches.server";
 import { productCoverUrl } from "@/lib/product-images";
+import { getShopSettings } from "@/lib/settings.server";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db } from "@/services";
 
@@ -30,7 +31,8 @@ const notCancelled = ne(order.fulfillmentStatus, "cancelled");
 export const getBatchOverview = createServerFn({ method: "GET" })
   .middleware([requireAuthMiddleware])
   .handler(async () => {
-    const current = await getCurrentBatch();
+    const [current, { deliveryRates }] = await Promise.all([getCurrentBatch(), getShopSettings()]);
+    const deliveryAreas = deliveryRates.map(({ area }) => area);
     const catalog = await db.query.product.findMany({
       orderBy: { sortOrder: "asc", name: "asc" },
       with: { batchProducts: { where: { batchId: current?.id ?? "" } } },
@@ -53,7 +55,7 @@ export const getBatchOverview = createServerFn({ method: "GET" })
         sold: sold.get(row.id) ?? 0,
       };
     });
-    if (!current) return { products, current: null };
+    if (!current) return { products, deliveryAreas, current: null };
 
     const [slots, zones, orderTotals, slotFill] = await Promise.all([
       db.query.pickupSlot.findMany({
@@ -62,7 +64,7 @@ export const getBatchOverview = createServerFn({ method: "GET" })
       }),
       db.query.deliveryZone.findMany({
         where: { batchId: current.id },
-        orderBy: { windowStartsAt: "asc", name: "asc" },
+        orderBy: { windowStartsAt: "asc" },
       }),
       db
         .select({
@@ -85,6 +87,7 @@ export const getBatchOverview = createServerFn({ method: "GET" })
 
     return {
       products,
+      deliveryAreas,
       current: {
         batch: current,
         orders: {
@@ -112,6 +115,12 @@ export const saveBatchSchema = z
     closesAt: dateSchema,
     paymentCutoffAt: dateSchema,
     pickupLocation: z.string().trim().max(160),
+    pickupEnabled: z.boolean(),
+    deliveryEnabled: z.boolean(),
+  })
+  .refine(({ pickupEnabled, deliveryEnabled }) => pickupEnabled || deliveryEnabled, {
+    message: "Aktifkan minimal satu cara pengiriman",
+    path: ["pickupEnabled"],
   })
   .refine(({ opensAt, closesAt }) => closesAt > opensAt, {
     message: "Waktu tutup harus setelah waktu buka",
@@ -148,6 +157,7 @@ export const savePickupSlotSchema = z
     batchId: z.string().min(1),
     startsAt: dateSchema,
     endsAt: dateSchema,
+    location: z.string().trim().max(160, "Lokasi maksimal 160 karakter"),
     capacity: z.number().int().min(1, "Kapasitas minimal 1").max(10_000),
     active: z.boolean(),
   })
@@ -188,10 +198,10 @@ export const saveDeliveryZoneSchema = z
   .object({
     id: z.string().min(1).optional(),
     batchId: z.string().min(1),
-    name: z.string().trim().min(1, "Nama area wajib diisi").max(80),
     windowStartsAt: dateSchema,
     windowEndsAt: dateSchema,
-    fee: z.number().int().min(0).max(1_000_000),
+    /** Areas served; empty serves every area. */
+    areas: z.array(z.string().trim().min(1).max(80)).max(30),
     active: z.boolean(),
   })
   .refine(({ windowStartsAt, windowEndsAt }) => windowEndsAt > windowStartsAt, {
@@ -211,7 +221,7 @@ export const saveDeliveryZone = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Deletes a zone only while no order uses it; otherwise deactivate it instead. */
+/** Deletes a delivery window only while no order uses it; otherwise deactivate it instead. */
 export const deleteDeliveryZone = createServerFn({ method: "POST" })
   .middleware([requireAuthMiddleware])
   .validator(z.object({ id: z.string().min(1) }))
@@ -221,7 +231,7 @@ export const deleteDeliveryZone = createServerFn({ method: "POST" })
       .from(order)
       .where(eq(order.deliveryZoneId, data.id));
     if (value > 0) {
-      throw new Error("Area sudah dipakai pesanan. Nonaktifkan saja agar tidak bisa dipilih.");
+      throw new Error("Jadwal sudah dipakai pesanan. Nonaktifkan saja agar tidak bisa dipilih.");
     }
     await db.delete(deliveryZone).where(eq(deliveryZone.id, data.id));
     return { ok: true as const };

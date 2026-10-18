@@ -324,9 +324,9 @@ function InvoicePaper({
               <span className="font-bold">{formatRupiah(lineTotal)}</span>
             </li>
           ))}
-          {order.shippingFee > 0 && (
+          {(order.shippingLabel || order.shippingFee > 0) && (
             <li className="flex justify-between gap-3">
-              <span>Ongkir</span>
+              <span>{order.shippingLabel ?? "Ongkir"}</span>
               <span className="font-bold">{formatRupiah(order.shippingFee)}</span>
             </li>
           )}

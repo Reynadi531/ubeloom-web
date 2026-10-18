@@ -14,7 +14,7 @@ import {
   MAX_MANUAL_PROOF_BYTES,
 } from "@/functions/orders";
 import { formatRupiah } from "@/lib/format";
-import { CASH_PAYMENT_METHOD, type FulfillmentMethod } from "@/lib/orders";
+import { CASH_PAYMENT_METHOD, type FulfillmentMethod, windowServesArea } from "@/lib/orders";
 
 export const Route = createFileRoute("/_auth/dashboard/pesanan/baru")({
   head: () => ({
@@ -41,7 +41,16 @@ function ManualOrderComponent() {
   const productSelectRef = useRef<HTMLSelectElement>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [fulfillment, setFulfillment] = useState<FulfillmentMethod>("pickup");
+  const methodOptions = fulfillmentOptions.filter(({ value }) =>
+    value === "pickup"
+      ? form.batch?.pickupEnabled !== false
+      : form.batch?.deliveryEnabled !== false,
+  );
+  const [fulfillment, setFulfillment] = useState<FulfillmentMethod>(
+    methodOptions[0]?.value ?? "pickup",
+  );
+  const [deliveryArea, setDeliveryArea] = useState(form.deliveryAreas[0]?.name ?? "");
+  const [courier, setCourier] = useState(form.couriers[0]?.name ?? "");
   const [scheduleId, setScheduleId] = useState("");
   const [address, setAddress] = useState("");
   const [items, setItems] = useState<{ id: string; quantity: number }[]>([]);
@@ -57,15 +66,20 @@ function ManualOrderComponent() {
   const canOrder = form.batch?.isOpen === true;
   const scheduleOptions =
     fulfillment === "pickup"
-      ? form.pickupSlots.map(({ id, label, remaining }) => ({
+      ? form.pickupSlots.map(({ id, label, location, remaining }) => ({
           value: id,
-          label: `${label}${remaining > 0 ? ` · sisa ${remaining}` : " · penuh"}`,
+          label: `${label}${location ? ` · ${location}` : ""}${remaining > 0 ? ` · sisa ${remaining}` : " · penuh"}`,
         }))
-      : form.deliveryZones.map(({ id, label }) => ({ value: id, label }));
+      : form.deliveryWindows
+          .filter(({ areas }) => windowServesArea(areas, deliveryArea))
+          .map(({ id, label }) => ({ value: id, label }));
+  const pickupLocation =
+    form.pickupSlots.find(({ id }) => id === scheduleId)?.location ?? form.batch?.pickupLocation;
   const scheduleLabel = scheduleOptions.find(({ value }) => value === scheduleId)?.label;
+  const courierFee = form.couriers.find(({ name: option }) => option === courier)?.fee ?? 0;
   const shippingFee =
     fulfillment === "delivery"
-      ? (form.deliveryZones.find(({ id }) => id === scheduleId)?.fee ?? 0)
+      ? (form.deliveryAreas.find(({ name: area }) => area === deliveryArea)?.fee ?? 0) + courierFee
       : 0;
 
   const lines = items.flatMap(({ id, quantity }) => {
@@ -107,6 +121,8 @@ function ManualOrderComponent() {
       method: fulfillment,
       scheduleId,
       address: fulfillment === "delivery" ? address : undefined,
+      deliveryArea: fulfillment === "delivery" ? deliveryArea : undefined,
+      courier: fulfillment === "delivery" && form.couriers.length > 0 ? courier : undefined,
       items: items.map(({ id, quantity }) => ({ productId: id, quantity })),
       paymentMethod,
       amountReceived: amount,
@@ -230,7 +246,7 @@ function ManualOrderComponent() {
               <OverlaySelect
                 label="Metode pemenuhan"
                 value={fulfillment}
-                options={fulfillmentOptions}
+                options={methodOptions}
                 onChange={(value) => {
                   setFulfillment(value as FulfillmentMethod);
                   setScheduleId("");
@@ -250,8 +266,34 @@ function ManualOrderComponent() {
               </OverlaySelect>
             </div>
             <FieldError message={errors.method ?? errors.scheduleId} />
-            {fulfillment === "pickup" && form.batch?.pickupLocation && (
-              <p className="text-[10px] text-plum">Lokasi pickup: {form.batch.pickupLocation}</p>
+            {fulfillment === "pickup" && pickupLocation && (
+              <p className="text-[10px] text-plum">Lokasi pickup: {pickupLocation}</p>
+            )}
+            {fulfillment === "delivery" && (
+              <label className="flex flex-col gap-[5px]">
+                <span className={fieldLabelClassName}>Area tujuan</span>
+                <select
+                  value={deliveryArea}
+                  aria-invalid={Boolean(errors.deliveryArea)}
+                  onChange={(event) => {
+                    const area = event.target.value;
+                    setDeliveryArea(area);
+                    const window = form.deliveryWindows.find(({ id }) => id === scheduleId);
+                    if (window && !windowServesArea(window.areas, area)) setScheduleId("");
+                  }}
+                  className={inputClassName}
+                >
+                  {form.deliveryAreas.length === 0 && (
+                    <option value="">Belum ada area · atur di Pengaturan</option>
+                  )}
+                  {form.deliveryAreas.map(({ name: area, fee }) => (
+                    <option key={area} value={area}>
+                      {area} · ongkir {formatRupiah(fee)}
+                    </option>
+                  ))}
+                </select>
+                <FieldError message={errors.deliveryArea} />
+              </label>
             )}
             {fulfillment === "delivery" && (
               <label className="flex flex-col gap-[5px]">
@@ -266,6 +308,23 @@ function ManualOrderComponent() {
                   className={`${inputClassName} h-auto resize-none py-2.5`}
                 />
                 <FieldError message={errors.address} />
+              </label>
+            )}
+            {fulfillment === "delivery" && form.couriers.length > 0 && (
+              <label className="flex flex-col gap-[5px]">
+                <span className={fieldLabelClassName}>Kurir</span>
+                <select
+                  value={courier}
+                  onChange={(event) => setCourier(event.target.value)}
+                  className={inputClassName}
+                >
+                  {form.couriers.map(({ name: option, fee }) => (
+                    <option key={option} value={option}>
+                      {option}
+                      {fee > 0 ? ` · +${formatRupiah(fee)}` : ""}
+                    </option>
+                  ))}
+                </select>
               </label>
             )}
           </section>

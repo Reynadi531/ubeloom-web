@@ -82,3 +82,9 @@ export function generateInvoiceNumber(now = new Date()) {
   );
   return `UBP-${date}-${suffix}`;
 }
+
+/** Whether a delivery window (its `areas` list; empty = all) serves the given area. */
+export function windowServesArea(areas: string[], area: string) {
+  const target = area.trim().toLowerCase();
+  return areas.length === 0 || areas.some((name) => name.trim().toLowerCase() === target);
+}

@@ -74,6 +74,11 @@ export async function loadInvoiceForm(orderId?: string) {
       })),
       subtotal: row.subtotal,
       shippingFee: row.shippingFee,
+      /** "Ongkir · Sekitar kampus · GoSend" for delivery; null for pickup. */
+      shippingLabel:
+        row.method === "delivery"
+          ? ["Ongkir", row.deliveryArea, row.courier].filter(Boolean).join(" · ")
+          : null,
       total: row.total,
     })),
   };

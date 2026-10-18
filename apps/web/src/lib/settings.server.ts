@@ -7,7 +7,13 @@ const SETTINGS_ID = "default";
 
 export type ShopSettings = Pick<
   typeof shopSetting.$inferSelect,
-  "brandName" | "qrisMerchantName" | "qrisImageKey" | "paymentMethods" | "invoiceMemo"
+  | "brandName"
+  | "qrisMerchantName"
+  | "qrisImageKey"
+  | "paymentMethods"
+  | "deliveryRates"
+  | "couriers"
+  | "invoiceMemo"
 >;
 
 /** Fields saved by the Pengaturan form; the QRIS image has its own upload flow. */

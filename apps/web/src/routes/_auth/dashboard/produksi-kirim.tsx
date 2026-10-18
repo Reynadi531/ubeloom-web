@@ -197,7 +197,9 @@ function windowLabel(order: Order) {
 }
 
 function destinationLabel(order: Order, pickupLocation: string) {
-  if (order.method === "pickup") return `Pickup · ${pickupLocation || "lokasi belum diatur"}`;
+  if (order.method === "pickup") {
+    return `Pickup · ${order.pickupSlot?.location || pickupLocation || "lokasi belum diatur"}`;
+  }
   return order.address || "Alamat belum diisi";
 }
 
@@ -707,7 +709,8 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
           <ExpandedRow label="WhatsApp" value={order.customerPhone} />
           {!isPickup && (
             <>
-              <ExpandedRow label="Zona" value={order.deliveryZone?.name ?? "—"} />
+              <ExpandedRow label="Area" value={order.deliveryArea ?? "—"} />
+              {order.courier && <ExpandedRow label="Kurir" value={order.courier} />}
               <ExpandedRow label="Alamat lengkap" value={order.address ?? "—"} />
             </>
           )}

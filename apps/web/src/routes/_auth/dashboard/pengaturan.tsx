@@ -35,12 +35,25 @@ function SettingsComponent() {
   const [qrisMerchantName, setQrisMerchantName] = useState(settings.qrisMerchantName);
   const [paymentMethods, setPaymentMethods] = useState(settings.paymentMethods);
   const [invoiceMemo, setInvoiceMemo] = useState(settings.invoiceMemo);
+  const [deliveryRates, setDeliveryRates] = useState(() =>
+    settings.deliveryRates.map(({ area, fee }) => ({ name: area, fee: String(fee) })),
+  );
+  const [couriers, setCouriers] = useState(() =>
+    settings.couriers.map(({ name, fee }) => ({ name, fee: String(fee) })),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const input = { brandName, qrisMerchantName, paymentMethods, invoiceMemo };
+    const input = {
+      brandName,
+      qrisMerchantName,
+      paymentMethods,
+      deliveryRates: deliveryRates.map(({ name, fee }) => ({ area: name, fee: parseFee(fee) })),
+      couriers: couriers.map(({ name, fee }) => ({ name, fee: parseFee(fee) })),
+      invoiceMemo,
+    };
     const parsed = shopSettingsSchema.safeParse(input);
     if (!parsed.success) {
       setErrors(fieldErrors(parsed.error));
@@ -167,6 +180,30 @@ function SettingsComponent() {
           </fieldset>
         </section>
 
+        <section className={cardClassName}>
+          <h2 className="text-sm font-bold text-ink">Pengiriman</h2>
+          <FeeListField
+            legend="Area tujuan & ongkir"
+            hint="Daftar area yang bisa dipilih pelanggan saat delivery, beserta ongkirnya. Jadwal kirim diatur per batch di Batch & produk."
+            namePlaceholder="Contoh: Kec. Coblong"
+            addLabel="Tambah area"
+            max={30}
+            rows={deliveryRates}
+            onChange={setDeliveryRates}
+            error={errors.deliveryRates}
+          />
+          <FeeListField
+            legend="Opsi kurir delivery"
+            hint="Pelanggan memilih salah satu saat delivery; biaya kurir ditambahkan ke ongkir area. Kosongkan bila tidak ada pilihan kurir."
+            namePlaceholder="Contoh: Kurir toko, GoSend"
+            addLabel="Tambah kurir"
+            max={10}
+            rows={couriers}
+            onChange={setCouriers}
+            error={errors.couriers}
+          />
+        </section>
+
         <button
           type="submit"
           disabled={saving}
@@ -176,6 +213,93 @@ function SettingsComponent() {
         </button>
       </form>
     </AdminPage>
+  );
+}
+
+/** Digits typed into a fee input; empty stays NaN so validation reports it. */
+function parseFee(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits ? Number(digits) : Number.NaN;
+}
+
+type FeeRow = { name: string; fee: string };
+
+/** Editable list of name + rupiah rows (area rates, courier options). */
+function FeeListField({
+  legend,
+  hint,
+  namePlaceholder,
+  addLabel,
+  max,
+  rows,
+  onChange,
+  error,
+}: {
+  legend: string;
+  hint: string;
+  namePlaceholder: string;
+  addLabel: string;
+  max: number;
+  rows: FeeRow[];
+  onChange: (update: (current: FeeRow[]) => FeeRow[]) => void;
+  error?: string;
+}) {
+  const edit = (index: number, patch: Partial<FeeRow>) =>
+    onChange((current) =>
+      current.map((row, position) => (position === index ? { ...row, ...patch } : row)),
+    );
+
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className={`${fieldLabelClassName} mb-1.5`}>{legend}</legend>
+      <span className="text-[10px] text-plum">{hint}</span>
+      {rows.map((row, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <input
+            aria-label={`${legend} ${index + 1}: nama`}
+            value={row.name}
+            maxLength={80}
+            placeholder={namePlaceholder}
+            onChange={(event) => edit(index, { name: event.target.value })}
+            className={inputClassName}
+          />
+          <div className="relative w-[140px] shrink-0">
+            <span className="pointer-events-none absolute top-1/2 left-[11px] -translate-y-1/2 text-xs text-plum">
+              Rp
+            </span>
+            <input
+              aria-label={`${legend} ${index + 1}: biaya`}
+              inputMode="numeric"
+              value={row.fee}
+              placeholder="0"
+              onChange={(event) => edit(index, { fee: event.target.value.replace(/\D/g, "") })}
+              className={`${inputClassName} pl-8`}
+            />
+          </div>
+          <button
+            type="button"
+            aria-label={`Hapus ${legend.toLowerCase()} ${index + 1}`}
+            onClick={() =>
+              onChange((current) => current.filter((_, position) => position !== index))
+            }
+            className="flex size-[42px] shrink-0 items-center justify-center rounded-lg border border-ube-line text-plum hover:text-ube-pop"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ))}
+      {rows.length < max && (
+        <button
+          type="button"
+          onClick={() => onChange((current) => [...current, { name: "", fee: "" }])}
+          className="flex w-fit items-center gap-1.5 text-[11px] font-bold text-deep-ube hover:text-ube-pop"
+        >
+          <Plus className="size-3.5" />
+          {addLabel}
+        </button>
+      )}
+      {error && <span className={fieldErrorClassName}>{error}</span>}
+    </fieldset>
   );
 }
 

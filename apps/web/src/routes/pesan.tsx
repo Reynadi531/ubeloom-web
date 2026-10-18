@@ -17,7 +17,7 @@ import {
   placeOrderSchema,
 } from "@/functions/checkout";
 import { formatRupiah } from "@/lib/format";
-import type { FulfillmentMethod } from "@/lib/orders";
+import { type FulfillmentMethod, windowServesArea } from "@/lib/orders";
 import { cn } from "@web-kwu/ui/lib/utils";
 
 export const Route = createFileRoute("/pesan")({
@@ -108,10 +108,15 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     checkout.deliveryAreas.length ? "delivery" : "pickup",
   );
   const [areaName, setAreaName] = useState(checkout.deliveryAreas[0]?.name ?? "");
-  const [zoneId, setZoneId] = useState(checkout.deliveryAreas[0]?.windows[0]?.id ?? "");
+  const windowsFor = (name: string) =>
+    checkout.deliveryWindows.filter(({ areas }) => windowServesArea(areas, name));
+  const [zoneId, setZoneId] = useState(
+    () => windowsFor(checkout.deliveryAreas[0]?.name ?? "")[0]?.id ?? "",
+  );
   const [slotId, setSlotId] = useState(
     checkout.pickupSlots.find(({ remaining }) => remaining > 0)?.id ?? "",
   );
+  const [courierName, setCourierName] = useState(checkout.couriers[0]?.name ?? "");
   const [address, setAddress] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -122,17 +127,17 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
   const [submitting, setSubmitting] = useState(false);
 
   const area = checkout.deliveryAreas.find(({ name }) => name === areaName);
-  const zone = area?.windows.find(({ id }) => id === zoneId);
+  const areaWindows = windowsFor(areaName);
+  const zone = areaWindows.find(({ id }) => id === zoneId);
   const slot = checkout.pickupSlots.find(({ id }) => id === slotId);
-  const shippingFee = method === "delivery" ? (zone?.fee ?? 0) : 0;
+  const courier = checkout.couriers.find(({ name }) => name === courierName);
+  const shippingFee = method === "delivery" ? (area?.fee ?? 0) + (courier?.fee ?? 0) : 0;
   const lines = checkout.products.flatMap((product) => {
     const quantity = quantities[product.id] ?? 0;
     return quantity > 0 ? [{ ...product, quantity }] : [];
   });
   const subtotal = lines.reduce((sum, { price, quantity }) => sum + price * quantity, 0);
-  const minFee = Math.min(
-    ...checkout.deliveryAreas.flatMap(({ windows }) => windows.map(({ fee }) => fee)),
-  );
+  const minFee = Math.min(...checkout.deliveryAreas.map(({ fee }) => fee));
 
   const changeQuantity = (productId: string, delta: number, max: number) =>
     setQuantities((current) => ({
@@ -140,22 +145,17 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
       [productId]: Math.min(max, Math.max(0, (current[productId] ?? 0) + delta)),
     }));
 
-  const selectArea = (name: string) => {
-    setAreaName(name);
-    setZoneId(
-      checkout.deliveryAreas.find((candidate) => candidate.name === name)?.windows[0]?.id ?? "",
-    );
-  };
-
   const input = (): PlaceOrderInput => ({
     batchId: checkout.batch.id,
     customerName,
     customerPhone,
     method,
     scheduleId: method === "delivery" ? zoneId : slotId,
+    deliveryArea: method === "delivery" ? areaName : undefined,
     address: method === "delivery" ? address : undefined,
     recipientName: method === "delivery" ? recipientName : undefined,
     recipientPhone: method === "delivery" ? recipientPhone : undefined,
+    courier: method === "delivery" && courier ? courier.name : undefined,
     items: lines.map(({ id, quantity }) => ({ productId: id, quantity })),
     notes: notes || undefined,
     termsAccepted: termsAccepted as true,
@@ -199,7 +199,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
           slot: zone?.label ?? "Pilih jendela pengiriman",
         }
       : {
-          heading: `AMBIL SENDIRI · ${checkout.batch.pickupLocation.toUpperCase()}`,
+          heading: `AMBIL SENDIRI · ${(slot?.location ?? checkout.batch.pickupLocation).toUpperCase()}`,
           slot: slot?.label ?? "Pilih slot ambil",
         };
 
@@ -347,7 +347,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
                 title="Diantar ke alamat"
                 detail={
                   checkout.deliveryAreas.length
-                    ? `Area terjangkau · ongkir ${method === "delivery" && zone ? formatRupiah(zone.fee) : `mulai ${formatRupiah(minFee)}`}`
+                    ? `Area terjangkau · ongkir ${method === "delivery" && area ? formatRupiah(area.fee) : `mulai ${formatRupiah(minFee)}`}`
                     : "Belum tersedia untuk batch ini"
                 }
                 selected={method === "delivery"}
@@ -370,12 +370,24 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
                   Alamat &amp; penerima pengiriman
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <Field label="Kecamatan / area tujuan *" compact className="flex-1">
+                  <Field
+                    label="Kecamatan / area tujuan *"
+                    compact
+                    error={errors.deliveryArea}
+                    className="flex-1"
+                  >
                     {(props) => (
                       <SelectBox
                         {...props}
                         value={areaName}
-                        onChange={selectArea}
+                        onChange={(name) => {
+                          setAreaName(name);
+                          // Keep the window when it also serves the new area.
+                          const windows = windowsFor(name);
+                          if (!windows.some(({ id }) => id === zoneId)) {
+                            setZoneId(windows[0]?.id ?? "");
+                          }
+                        }}
                         options={checkout.deliveryAreas.map(({ name }) => ({
                           value: name,
                           label: name,
@@ -384,7 +396,9 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
                     )}
                   </Field>
                   <div className="flex flex-col gap-1 rounded-[8px] bg-vanilla px-3 py-2.5 sm:w-[210px]">
-                    <p className="text-[10px] font-bold text-ube-pop">ONGKIR AREA</p>
+                    <p className="text-[10px] font-bold text-ube-pop">
+                      {courier ? "ONGKIR AREA + KURIR" : "ONGKIR AREA"}
+                    </p>
                     <p className="text-[15px] font-bold text-deep-ube">
                       {formatRupiah(shippingFee)}
                     </p>
@@ -438,28 +452,43 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
                       {...props}
                       value={zoneId}
                       onChange={setZoneId}
-                      options={(area?.windows ?? []).map(({ id, label }) => ({ value: id, label }))}
+                      options={areaWindows.map(({ id, label }) => ({
+                        value: id,
+                        label,
+                      }))}
                     />
                   )}
                 </Field>
+                {checkout.couriers.length > 0 && (
+                  <Field label="Kurir *" compact error={errors.courier}>
+                    {(props) => (
+                      <SelectBox
+                        {...props}
+                        value={courierName}
+                        onChange={setCourierName}
+                        options={checkout.couriers.map(({ name, fee }) => ({
+                          value: name,
+                          label: fee > 0 ? `${name} · +${formatRupiah(fee)}` : name,
+                        }))}
+                      />
+                    )}
+                  </Field>
+                )}
                 <p className="text-[11px] text-plum">
                   Waktu tiba perkiraan; kurir akan menghubungi penerima sebelum tiba.
                 </p>
               </div>
             ) : (
-              <Field
-                label={`Slot ambil · ${checkout.batch.pickupLocation}`}
-                error={errors.scheduleId}
-              >
+              <Field label="Slot & lokasi ambil" error={errors.scheduleId}>
                 {(props) => (
                   <SelectBox
                     {...props}
                     value={slotId}
                     onChange={setSlotId}
                     tall
-                    options={checkout.pickupSlots.map(({ id, label, remaining }) => ({
+                    options={checkout.pickupSlots.map(({ id, label, location, remaining }) => ({
                       value: id,
-                      label: `Ambil sendiri: ${label} / ${checkout.batch.pickupLocation}${remaining > 0 ? "" : " · penuh"}`,
+                      label: `Ambil sendiri: ${label} / ${location}${remaining > 0 ? "" : " · penuh"}`,
                       disabled: remaining === 0,
                     }))}
                   />
@@ -549,7 +578,11 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
             )}
             <AmountRow label="Subtotal produk" amount={subtotal} />
             <AmountRow
-              label={method === "delivery" ? `Ongkir · ${areaName}` : "Ongkir · ambil sendiri"}
+              label={
+                method === "delivery"
+                  ? `Ongkir · ${[areaName, courier?.name].filter(Boolean).join(" · ")}`
+                  : "Ongkir · ambil sendiri"
+              }
               amount={shippingFee}
             />
             <hr className="border-ube-line" />

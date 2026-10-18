@@ -115,6 +115,9 @@ export const batch = pgTable(
     closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
     paymentCutoffAt: timestamp("payment_cutoff_at", { withTimezone: true }).notNull(),
     pickupLocation: text("pickup_location").notNull().default(""),
+    /** Fulfillment methods customers may choose in this batch. */
+    pickupEnabled: boolean("pickup_enabled").notNull().default(true),
+    deliveryEnabled: boolean("delivery_enabled").notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -148,12 +151,18 @@ export const pickupSlot = pgTable(
       .references(() => batch.id, { onDelete: "cascade" }),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    /** Pickup point for this slot; empty falls back to the batch pickupLocation. */
+    location: text("location").notNull().default(""),
     capacity: integer("capacity").notNull(),
     active: boolean("active").notNull().default(true),
   },
   (table) => [index("pickup_slot_batch_idx").on(table.batchId)],
 );
 
+/**
+ * Delivery window of a batch. Areas and their ongkir are shop-wide (shopSetting.deliveryRates);
+ * a delivery order picks one area and one window serving that area.
+ */
 export const deliveryZone = pgTable(
   "delivery_zone",
   {
@@ -161,10 +170,10 @@ export const deliveryZone = pgTable(
     batchId: text("batch_id")
       .notNull()
       .references(() => batch.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
     windowStartsAt: timestamp("window_starts_at", { withTimezone: true }).notNull(),
     windowEndsAt: timestamp("window_ends_at", { withTimezone: true }).notNull(),
-    fee: rupiah("fee").notNull(),
+    /** Area names (from Pengaturan) this window serves; empty serves every area. */
+    areas: jsonb("areas").$type<string[]>().notNull().default([]),
     active: boolean("active").notNull().default(true),
   },
   (table) => [index("delivery_zone_batch_idx").on(table.batchId)],
@@ -194,10 +203,14 @@ export const order = pgTable(
     deliveryZoneId: text("delivery_zone_id").references(() => deliveryZone.id, {
       onDelete: "set null",
     }),
+    /** Delivery area chosen at checkout, snapshotted from Pengaturan. */
+    deliveryArea: text("delivery_area"),
     address: text("address"),
     /** Delivery recipient when someone other than the customer receives the package. */
     recipientName: text("recipient_name"),
     recipientPhone: text("recipient_phone"),
+    /** Courier option chosen for delivery, snapshotted from Pengaturan. */
+    courier: text("courier"),
     /** Free-form label, e.g. "Transfer bank · BCA", "QRIS", "Tunai". */
     paymentMethod: text("payment_method").notNull(),
     paymentStatus: paymentStatus("payment_status").notNull().default("unpaid"),
@@ -367,6 +380,12 @@ export const drawWinner = pgTable(
   ],
 );
 
+/** Delivery area customers can choose and its ongkir. */
+export type DeliveryRate = { area: string; fee: number };
+
+/** Courier customers can pick for delivery; its fee is added on top of the area ongkir. */
+export type CourierOption = { name: string; fee: number };
+
 /**
  * Singleton row (id "default") of business details shown on invoices, payment
  * review and checkout. Edited from Pengaturan in the dashboard.
@@ -381,6 +400,10 @@ export const shopSetting = pgTable("shop_setting", {
   qrisImageKey: text("qris_image_key"),
   /** Non-cash payment methods offered on manual orders, e.g. "Transfer bank · BCA". */
   paymentMethods: jsonb("payment_methods").$type<string[]>().notNull().default(["QRIS"]),
+  /** Delivery areas and their ongkir, offered in every batch's delivery windows. */
+  deliveryRates: jsonb("delivery_rates").$type<DeliveryRate[]>().notNull().default([]),
+  /** Courier options for delivery; empty means no courier choice and no extra fee. */
+  couriers: jsonb("couriers").$type<CourierOption[]>().notNull().default([]),
   /** Closing note printed on issued invoices. */
   invoiceMemo: text("invoice_memo").notNull().default(""),
   updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),

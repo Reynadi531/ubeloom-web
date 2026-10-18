@@ -17,7 +17,12 @@ import {
   formatWeekday,
   formatWindow,
 } from "@/lib/format";
-import { generateInvoiceNumber, type FulfillmentMethod, type PaymentStatus } from "@/lib/orders";
+import {
+  generateInvoiceNumber,
+  type FulfillmentMethod,
+  type PaymentStatus,
+  windowServesArea,
+} from "@/lib/orders";
 import { productCoverUrl, qrisImageUrl } from "@/lib/product-images";
 import { db } from "@/services";
 
@@ -62,19 +67,25 @@ export async function loadCheckout() {
   const current = await getPublicBatch();
   if (!current || current.status !== "open") return null;
 
-  const [batchProducts, slots, zones] = await Promise.all([
+  const [batchProducts, slots, zones, { deliveryRates, couriers }] = await Promise.all([
     db.query.batchProduct.findMany({
       where: { batchId: current.id, available: true, product: { published: true } },
       with: { product: true },
     }),
-    db.query.pickupSlot.findMany({
-      where: { batchId: current.id, active: true },
-      orderBy: { startsAt: "asc" },
-    }),
-    db.query.deliveryZone.findMany({
-      where: { batchId: current.id, active: true },
-      orderBy: { windowStartsAt: "asc" },
-    }),
+    // A disabled method offers no schedules, so checkout cannot select it.
+    current.pickupEnabled
+      ? db.query.pickupSlot.findMany({
+          where: { batchId: current.id, active: true },
+          orderBy: { startsAt: "asc" },
+        })
+      : [],
+    current.deliveryEnabled
+      ? db.query.deliveryZone.findMany({
+          where: { batchId: current.id, active: true },
+          orderBy: { windowStartsAt: "asc" },
+        })
+      : [],
+    getShopSettings(),
   ]);
   const [ordered, booked] = await Promise.all([
     orderedQuantities(
@@ -88,20 +99,10 @@ export async function loadCheckout() {
     ),
   ]);
 
-  // Zones sharing a name are the same area with several delivery windows.
-  const areas = new Map<
-    string,
-    { name: string; windows: { id: string; label: string; fee: number }[] }
-  >();
-  for (const zone of zones) {
-    const area = areas.get(zone.name) ?? { name: zone.name, windows: [] };
-    area.windows.push({
-      id: zone.id,
-      label: formatSlot(zone.windowStartsAt, zone.windowEndsAt),
-      fee: zone.fee,
-    });
-    areas.set(zone.name, area);
-  }
+  // Only offer areas that at least one delivery window of this batch serves.
+  const deliveryAreas = deliveryRates
+    .filter(({ area }) => zones.some((zone) => windowServesArea(zone.areas, area)))
+    .map(({ area, fee }) => ({ name: area, fee }));
 
   const pickupLocation = current.pickupLocation || "Lokasi pickup menyusul";
   return {
@@ -126,12 +127,21 @@ export async function loadCheckout() {
         remaining:
           capacity === null ? null : Math.max(0, capacity - (ordered.get(product.id) ?? 0)),
       })),
-    pickupSlots: slots.map(({ id, startsAt, endsAt, capacity }) => ({
+    pickupSlots: slots.map(({ id, startsAt, endsAt, location, capacity }) => ({
       id,
       label: formatSlot(startsAt, endsAt),
+      location: location || pickupLocation,
       remaining: Math.max(0, capacity - (booked.get(id) ?? 0)),
     })),
-    deliveryAreas: [...areas.values()],
+    deliveryAreas,
+    deliveryWindows: deliveryAreas.length
+      ? zones.map(({ id, windowStartsAt, windowEndsAt, areas }) => ({
+          id,
+          label: formatSlot(windowStartsAt, windowEndsAt),
+          areas,
+        }))
+      : [],
+    couriers,
   };
 }
 
@@ -143,13 +153,11 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
     try {
       return await db.transaction(async (tx) => {
         const lockedBatch = await lockOpenBatch(tx, data.batchId);
-        const { lines, shippingFee, pickupSlotId, deliveryZoneId } = await priceOrder(
-          tx,
-          lockedBatch,
-          quantities,
-          data.method,
-          data.scheduleId,
-        );
+        const { lines, shippingFee, pickupSlotId, deliveryZoneId, deliveryArea, courier } =
+          await priceOrder(tx, lockedBatch, quantities, data.method, data.scheduleId, {
+            area: data.deliveryArea,
+            courier: data.courier,
+          });
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
         const isDelivery = data.method === "delivery";
 
@@ -163,9 +171,11 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
             method: data.method,
             pickupSlotId,
             deliveryZoneId,
+            deliveryArea,
             address: isDelivery ? data.address : null,
             recipientName: isDelivery ? data.recipientName : null,
             recipientPhone: isDelivery ? data.recipientPhone : null,
+            courier,
             paymentMethod: "QRIS",
             subtotal,
             shippingFee,
@@ -229,8 +239,8 @@ export async function loadInvoice(token: string) {
     method: row.method as FulfillmentMethod,
     destination:
       row.method === "delivery"
-        ? [row.address, row.deliveryZone?.name].filter(Boolean).join(" · ")
-        : row.batch.pickupLocation || "Lokasi pickup menyusul",
+        ? [row.address, row.deliveryArea, row.courier].filter(Boolean).join(" · ")
+        : row.pickupSlot?.location || row.batch.pickupLocation || "Lokasi pickup menyusul",
     recipient:
       row.method === "delivery" && row.recipientName
         ? `${row.recipientName} · ${row.recipientPhone ?? ""}`.trim()

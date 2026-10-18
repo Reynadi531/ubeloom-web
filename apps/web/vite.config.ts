@@ -16,7 +16,7 @@ export default defineConfig({
     varlockVitePlugin({ ssrInjectMode: "auto-load" }),
     tailwindcss(),
     tanstackStart(),
-    nitro({ preset: "node-server" }),
+    nitro(),
     viteReact(),
   ],
 });

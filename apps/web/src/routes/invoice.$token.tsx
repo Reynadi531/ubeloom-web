@@ -192,6 +192,12 @@ function InvoiceComponent() {
                   label={isDelivery ? "Biaya pengiriman" : "Ongkir · ambil sendiri"}
                   amount={invoice.shippingFee}
                 />
+                {invoice.discount > 0 && (
+                  <InvoiceAmountRow
+                    label={`Voucher ${invoice.voucherCode ?? ""}`.trim()}
+                    amount={-invoice.discount}
+                  />
+                )}
               </div>
               <hr className="border-ube-line" />
               <TotalRow label="Total yang harus dibayar" amount={invoice.total} />
@@ -301,7 +307,7 @@ function InvoiceAmountRow({ label, amount }: { label: string; amount: number }) 
   return (
     <div className="flex items-center justify-between gap-4 py-0.5 text-xs text-ink">
       <p className="font-semibold">{label}</p>
-      <p className="font-bold">{formatRupiah(amount)}</p>
+      <p className="font-bold">{amount < 0 ? `−${formatRupiah(-amount)}` : formatRupiah(amount)}</p>
     </div>
   );
 }

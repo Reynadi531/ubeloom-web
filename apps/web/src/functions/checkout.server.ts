@@ -35,6 +35,7 @@ import {
   priceOrder,
   slotBookings,
 } from "./orders.server";
+import { redeemVoucher } from "./vouchers.server";
 import type { PlaceOrderData, SubmitProofData } from "./checkout";
 
 /** Customers pay within 24 hours of the invoice, never after the batch cutoff. */
@@ -159,6 +160,9 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
             courier: data.courier,
           });
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+        const applied = data.voucherCode
+          ? await redeemVoucher(tx, data.voucherCode, lines)
+          : { voucherId: null, voucherCode: null, discount: 0 };
         const isDelivery = data.method === "delivery";
 
         const [created] = await tx
@@ -179,7 +183,10 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
             paymentMethod: "QRIS",
             subtotal,
             shippingFee,
-            total: subtotal + shippingFee,
+            discount: applied.discount,
+            voucherId: applied.voucherId,
+            voucherCode: applied.voucherCode,
+            total: subtotal - applied.discount + shippingFee,
             notes: data.notes || null,
             drawOptIn: data.drawOptIn,
           })
@@ -190,7 +197,9 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
           orderId: created.id,
           type: "created",
           toStatus: "pending",
-          note: "Pesanan dari checkout storefront · QRIS",
+          note: applied.voucherCode
+            ? `Pesanan dari checkout storefront · QRIS · voucher ${applied.voucherCode} −${formatRupiah(applied.discount)}`
+            : "Pesanan dari checkout storefront · QRIS",
         });
         return { token: created.accessToken };
       });
@@ -255,6 +264,8 @@ export async function loadInvoice(token: string) {
     })),
     subtotal: row.subtotal,
     shippingFee: row.shippingFee,
+    discount: row.discount,
+    voucherCode: row.voucherCode,
     total: row.total,
     paymentStatus: row.paymentStatus as PaymentStatus,
     cancelled,

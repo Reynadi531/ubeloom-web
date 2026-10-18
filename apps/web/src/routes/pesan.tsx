@@ -1,5 +1,5 @@
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { ChevronDown, Store, Truck, type LucideIcon } from "lucide-react";
+import { ChevronDown, Store, TicketPercent, Truck, X, type LucideIcon } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -16,6 +16,7 @@ import {
   placeOrder,
   placeOrderSchema,
 } from "@/functions/checkout";
+import { checkVoucher } from "@/functions/vouchers";
 import { formatRupiah } from "@/lib/format";
 import { type FulfillmentMethod, windowServesArea } from "@/lib/orders";
 import { seo } from "@/lib/seo";
@@ -123,6 +124,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
   const [drawOptIn, setDrawOptIn] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const voucher = useVoucher(checkout.batch.id);
 
   const area = checkout.deliveryAreas.find(({ name }) => name === areaName);
   const areaWindows = windowsFor(areaName);
@@ -135,13 +137,19 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     return quantity > 0 ? [{ ...product, quantity }] : [];
   });
   const subtotal = lines.reduce((sum, { price, quantity }) => sum + price * quantity, 0);
+  const discount = voucher.applied?.discount ?? 0;
+  const total = subtotal - discount + shippingFee;
   const minFee = Math.min(...checkout.deliveryAreas.map(({ fee }) => fee));
 
-  const changeQuantity = (productId: string, delta: number, max: number) =>
-    setQuantities((current) => ({
-      ...current,
-      [productId]: Math.min(max, Math.max(0, (current[productId] ?? 0) + delta)),
-    }));
+  const changeQuantity = (productId: string, delta: number, max: number) => {
+    const next = {
+      ...quantities,
+      [productId]: Math.min(max, Math.max(0, (quantities[productId] ?? 0) + delta)),
+    };
+    setQuantities(next);
+    // The discount depends on the cart, so an applied voucher is re-checked.
+    if (voucher.applied) voucher.apply(voucher.applied.code, cartItems(next));
+  };
 
   const input = (): PlaceOrderInput => ({
     batchId: checkout.batch.id,
@@ -156,6 +164,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     courier: method === "delivery" && courier ? courier.name : undefined,
     items: lines.map(({ id, quantity }) => ({ productId: id, quantity })),
     notes: notes || undefined,
+    voucherCode: voucher.applied?.code,
     termsAccepted: termsAccepted as true,
     drawOptIn,
   });
@@ -583,8 +592,15 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
               }
               amount={shippingFee}
             />
+            {voucher.applied && (
+              <AmountRow label={`Voucher ${voucher.applied.code}`} amount={-discount} />
+            )}
+            <VoucherField
+              voucher={voucher}
+              onApply={(code) => voucher.apply(code, cartItems(quantities))}
+            />
             <hr className="border-ube-line" />
-            <TotalRow label="Total pembayaran" amount={subtotal + shippingFee} />
+            <TotalRow label="Total pembayaran" amount={total} />
             <div className="flex flex-col gap-[5px] rounded-[8px] bg-white px-3 py-2.5">
               <p className="font-data text-[10px] font-bold text-ube-pop">
                 {scheduleSummary.heading}
@@ -625,8 +641,11 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
             <ItemSummaryRow key={id} name={name} quantity={quantity} unitPrice={price} />
           ))}
           <AmountRow label="Ongkir" amount={shippingFee} />
+          {voucher.applied && (
+            <AmountRow label={`Voucher ${voucher.applied.code}`} amount={-discount} />
+          )}
           <hr className="border-ube-line" />
-          <TotalRow label="Total pembayaran" amount={subtotal + shippingFee} />
+          <TotalRow label="Total pembayaran" amount={total} />
           <div className="flex flex-col gap-[5px] rounded-[8px] bg-white px-3 py-2.5">
             <p className="font-data text-[10px] font-bold text-ube-pop">
               {scheduleSummary.heading}
@@ -842,7 +861,142 @@ function AmountRow({ label, amount }: { label: string; amount: number }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <p className="text-xs text-plum">{label}</p>
-      <p className="text-[13px] font-bold text-ink">{formatRupiah(amount)}</p>
+      <p className="text-[13px] font-bold text-ink">
+        {amount < 0 ? `−${formatRupiah(-amount)}` : formatRupiah(amount)}
+      </p>
+    </div>
+  );
+}
+
+function cartItems(quantities: Record<string, number>) {
+  return Object.entries(quantities).flatMap(([productId, quantity]) =>
+    quantity > 0 ? [{ productId, quantity }] : [],
+  );
+}
+
+type AppliedVoucher = Awaited<ReturnType<typeof checkVoucher>>;
+
+/**
+ * Voucher applied to the cart. The server prices the preview; only the latest request
+ * wins so quick quantity changes cannot leave a stale discount behind.
+ */
+function useVoucher(batchId: string) {
+  const [applied, setApplied] = useState<AppliedVoucher | null>(null);
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const latest = useRef(0);
+
+  const apply = async (code: string, items: { productId: string; quantity: number }[]) => {
+    const request = ++latest.current;
+    if (items.length === 0) {
+      setApplied(null);
+      setError(code ? "Pilih produk dulu sebelum memakai voucher." : "");
+      return;
+    }
+    setChecking(true);
+    try {
+      const result = await checkVoucher({ data: { batchId, code, items } });
+      if (request !== latest.current) return;
+      setApplied(result);
+      setError("");
+    } catch (failure) {
+      if (request !== latest.current) return;
+      setApplied(null);
+      setError(serverErrorMessage(failure));
+    } finally {
+      if (request === latest.current) setChecking(false);
+    }
+  };
+
+  const clear = () => {
+    latest.current++;
+    setApplied(null);
+    setError("");
+    setChecking(false);
+  };
+
+  return { applied, error, checking, apply, clear };
+}
+
+function VoucherField({
+  voucher,
+  onApply,
+}: {
+  voucher: ReturnType<typeof useVoucher>;
+  onApply: (code: string) => void;
+}) {
+  const id = useId();
+  const [code, setCode] = useState("");
+
+  if (voucher.applied) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-[8px] bg-white px-3 py-2.5">
+        <TicketPercent aria-hidden className="size-4 shrink-0 text-ube-pop" />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <p className="font-data text-[11px] font-bold text-deep-ube">{voucher.applied.code}</p>
+          <p className="text-[11px] text-plum">
+            {voucher.applied.description || "Voucher dipakai"}
+            {voucher.checking && " · memeriksa ulang…"}
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label={`Lepas voucher ${voucher.applied.code}`}
+          onClick={() => {
+            voucher.clear();
+            setCode("");
+          }}
+          className="flex size-7 shrink-0 items-center justify-center rounded-full text-plum transition-colors hover:text-ube-pop"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+    );
+  }
+
+  const submit = () => {
+    if (code.trim()) onApply(code);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-xs font-bold text-ink">
+        Kode voucher
+      </label>
+      <div className="flex gap-2">
+        <input
+          id={id}
+          value={code}
+          maxLength={32}
+          autoCapitalize="characters"
+          autoComplete="off"
+          placeholder="Punya kode promo?"
+          aria-invalid={voucher.error ? true : undefined}
+          aria-describedby={voucher.error ? `${id}-error` : undefined}
+          onChange={(event) => setCode(event.target.value.toUpperCase())}
+          onKeyDown={(event) => {
+            // Enter applies the code instead of submitting the checkout form.
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            }
+          }}
+          className={cn(compactInputClassName, "font-data uppercase")}
+        />
+        <button
+          type="button"
+          disabled={voucher.checking || !code.trim()}
+          onClick={submit}
+          className="shrink-0 rounded-[8px] border-[1.5px] border-deep-ube px-4 text-xs font-bold text-deep-ube transition-colors hover:bg-white disabled:opacity-50"
+        >
+          {voucher.checking ? "Memeriksa…" : "Pakai"}
+        </button>
+      </div>
+      {voucher.error && (
+        <p id={`${id}-error`} role="alert" className="text-[11px] font-semibold text-ube-pop">
+          {voucher.error}
+        </p>
+      )}
     </div>
   );
 }

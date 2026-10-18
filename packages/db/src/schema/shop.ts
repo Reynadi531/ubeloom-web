@@ -57,6 +57,20 @@ export const paymentAttemptStatus = pgEnum("payment_attempt_status", [
   "rejected",
 ]);
 export const drawStatus = pgEnum("draw_status", ["draft", "frozen", "drawn"]);
+/** Percentage off, or a rupiah cut. */
+export const voucherDiscountType = pgEnum("voucher_discount_type", ["percentage", "fixed"]);
+/** One discount on the whole subtotal, or an individual discount per product. */
+export const voucherScope = pgEnum("voucher_scope", ["order", "products"]);
+
+/**
+ * Discount of one product in a `products`-scope voucher. A `fixed` value is cut from
+ * every unit (never below Rp 0); a `percentage` applies to the line.
+ */
+export type VoucherItem = {
+  productId: string;
+  discountType: "percentage" | "fixed";
+  value: number;
+};
 
 /** Icon keys the storefront product detail page can render. */
 export type ProductIcon =
@@ -179,6 +193,38 @@ export const deliveryZone = pgTable(
   (table) => [index("delivery_zone_batch_idx").on(table.batchId)],
 );
 
+/** Coupon code customers enter at checkout for a discount on products (never ongkir). */
+export const voucher = pgTable(
+  "voucher",
+  {
+    id: id(),
+    /** Stored uppercase; customers type it case-insensitively. */
+    code: text("code").notNull().unique(),
+    /** Customer-facing summary shown once the code is applied, e.g. "Diskon 10% semua menu". */
+    description: text("description").notNull().default(""),
+    scope: voucherScope("scope").notNull().default("order"),
+    /** Discount on the whole subtotal; set only when scope is `order`. */
+    discountType: voucherDiscountType("discount_type"),
+    /** Percent (1–100) for `percentage`; whole rupiah for `fixed`. Scope `order` only. */
+    value: integer("value"),
+    /** Per-product discounts; set only when scope is `products`. */
+    items: jsonb("items").$type<VoucherItem[]>().notNull().default([]),
+    /** Upper bound of the total discount; null = no cap. */
+    maxDiscount: rupiah("max_discount"),
+    /** Eligible subtotal (promo products only for scope `products`) needed to apply. */
+    minSubtotal: rupiah("min_subtotal").notNull().default(0),
+    /** Max orders that may use the voucher (cancelled orders free their use); null = unlimited. */
+    quota: integer("quota"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    active: boolean("active").notNull().default(true),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("voucher_active_idx").on(table.active)],
+);
+
 export const order = pgTable(
   "order",
   {
@@ -217,6 +263,11 @@ export const order = pgTable(
     fulfillmentStatus: fulfillmentStatus("fulfillment_status").notNull().default("pending"),
     subtotal: rupiah("subtotal").notNull(),
     shippingFee: rupiah("shipping_fee").notNull().default(0),
+    /** Voucher discount off the subtotal; total = subtotal − discount + shippingFee. */
+    discount: rupiah("discount").notNull().default(0),
+    voucherId: text("voucher_id").references(() => voucher.id, { onDelete: "set null" }),
+    /** Code snapshot so invoices keep it after the voucher is edited or deleted. */
+    voucherCode: text("voucher_code"),
     total: rupiah("total").notNull(),
     notes: text("notes"),
     /** Customer opted into the batch invoice draw. */
@@ -230,6 +281,7 @@ export const order = pgTable(
     index("order_batch_idx").on(table.batchId),
     index("order_payment_status_idx").on(table.paymentStatus),
     index("order_fulfillment_status_idx").on(table.fulfillmentStatus),
+    index("order_voucher_idx").on(table.voucherId),
   ],
 );
 
@@ -426,6 +478,7 @@ export const shopRelations = defineRelationsPart(
     draw,
     drawPrize,
     drawWinner,
+    voucher,
   },
   (r) => ({
     product: {
@@ -463,6 +516,10 @@ export const shopRelations = defineRelationsPart(
       paymentAttempts: r.many.paymentAttempt({ from: r.order.id, to: r.paymentAttempt.orderId }),
       events: r.many.orderEvent({ from: r.order.id, to: r.orderEvent.orderId }),
       createdBy: r.one.user({ from: r.order.createdById, to: r.user.id }),
+      voucher: r.one.voucher({ from: r.order.voucherId, to: r.voucher.id }),
+    },
+    voucher: {
+      orders: r.many.order({ from: r.voucher.id, to: r.order.voucherId }),
     },
     orderItem: {
       order: r.one.order({ from: r.orderItem.orderId, to: r.order.id, optional: false }),

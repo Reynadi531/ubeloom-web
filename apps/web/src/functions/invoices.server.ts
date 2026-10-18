@@ -79,6 +79,8 @@ export async function loadInvoiceForm(orderId?: string) {
         row.method === "delivery"
           ? ["Ongkir", row.deliveryArea, row.courier].filter(Boolean).join(" · ")
           : null,
+      discount: row.discount,
+      voucherCode: row.voucherCode,
       total: row.total,
     })),
   };

@@ -9,6 +9,7 @@ import {
   ReceiptText,
   Settings,
   Ticket,
+  TicketPercent,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { label: "Verifikasi bayar", icon: BadgeCheck, to: "/dashboard/verifikasi-bayar" },
   { label: "Produksi & kirim", icon: Package, to: "/dashboard/produksi-kirim" },
   { label: "Batch & produk", icon: CalendarDays, to: "/dashboard/batch-produk" },
+  { label: "Voucher", icon: TicketPercent, to: "/dashboard/voucher" },
   { label: "Undian", icon: Ticket, to: "/dashboard/undian" },
   { label: "Pengaturan", icon: Settings, to: "/dashboard/pengaturan" },
 ];

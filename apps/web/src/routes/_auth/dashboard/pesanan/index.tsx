@@ -356,6 +356,14 @@ function SelectedOrder({ order }: { order: OrderListRow }) {
       label: "Subtotal + ongkir",
       value: `${formatRupiah(order.subtotal)} + ${formatRupiah(order.shippingFee)}`,
     },
+    ...(order.discount > 0
+      ? [
+          {
+            label: "Voucher",
+            value: `${order.voucherCode ?? "—"} · −${formatRupiah(order.discount)}`,
+          },
+        ]
+      : []),
     { label: paid ? "Total lunas" : "Total tagihan", value: formatRupiah(order.total) },
   ];
 

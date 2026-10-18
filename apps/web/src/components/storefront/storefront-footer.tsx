@@ -48,7 +48,6 @@ export default function StorefrontFooter() {
           <p className="flex gap-3 font-wordmark text-[10px] font-semibold text-vanilla">
             <a href="https://instagram.com/ubeloom_">Instagram ↗</a>
             <a href="https://wa.me/6282251752468">WhatsApp ↗</a>
-            <span>Hubungi kami</span>
           </p>
         </div>
       </div>

@@ -67,7 +67,38 @@ function RootDocument() {
       </head>
       <body>
         <Outlet />
-        <Toaster richColors />
+        <Toaster
+          richColors
+          theme="light"
+          style={
+            {
+              fontFamily: "var(--font-body)",
+              "--normal-bg": "var(--color-surface)",
+              "--normal-text": "var(--color-ink)",
+              "--normal-border": "var(--color-ube-line)",
+              "--success-bg": "color-mix(in oklab, var(--color-lilac) 45%, white)",
+              "--success-text": "var(--color-deep-ube)",
+              "--success-border": "var(--color-lilac)",
+              "--info-bg": "var(--color-surface)",
+              "--info-text": "var(--color-ube-pop)",
+              "--info-border": "var(--color-ube-line)",
+              "--warning-bg": "var(--color-vanilla)",
+              "--warning-text": "color-mix(in oklab, var(--color-ube-gold) 45%, var(--color-ink))",
+              "--warning-border": "var(--color-ube-gold)",
+              "--error-bg": "color-mix(in oklab, var(--color-blush-pink) 14%, white)",
+              "--error-text": "color-mix(in oklab, #d1335b 80%, var(--color-ink))",
+              "--error-border": "var(--color-blush-pink)",
+              "--border-radius": "12px",
+            } as React.CSSProperties
+          }
+          toastOptions={{
+            classNames: {
+              toast: "cn-toast shadow-[0_8px_24px_rgb(124_41_97/0.12)]!",
+              title: "font-semibold",
+              description: "text-plum!",
+            },
+          }}
+        />
         <TanStackRouterDevtools position="bottom-right" />
         <Scripts />
       </body>

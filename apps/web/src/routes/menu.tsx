@@ -3,10 +3,9 @@ import { ReactLenis } from "lenis/react";
 import { CalendarDays, MapPin, Truck, type LucideIcon } from "lucide-react";
 
 import { batchCopy } from "@/components/storefront/batch-copy";
-import MenuProductCard from "@/components/storefront/menu-product-card";
+import ProductCard, { type Product } from "@/components/storefront/product-card";
 import PreorderInvitation from "@/components/storefront/preorder-invitation";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
-import type { Product } from "@/components/storefront/product-card";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefront } from "@/functions/products";
 import { seo } from "@/lib/seo";
@@ -129,7 +128,7 @@ function ProductCatalog({ products }: { products: Product[] }) {
 
       <div className="grid gap-[22px] lg:grid-cols-2">
         {products.map((product) => (
-          <MenuProductCard key={product.slug} product={product} />
+          <ProductCard key={product.slug} product={product} />
         ))}
       </div>
     </section>

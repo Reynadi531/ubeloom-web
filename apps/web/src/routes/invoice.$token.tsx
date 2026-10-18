@@ -1,4 +1,4 @@
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import { Link, createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { Info, QrCode, Upload } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
@@ -13,11 +13,21 @@ import {
   TotalRow,
 } from "@/components/storefront/checkout-parts";
 import PrivateNav from "@/components/storefront/private-nav";
-import { type InvoiceData, MAX_PROOF_BYTES, getInvoice, submitProof } from "@/functions/checkout";
+import {
+  type InvoiceData,
+  MAX_PROOF_BYTES,
+  getInvoice,
+  invoiceTokenSchema,
+  submitProof,
+} from "@/functions/checkout";
 import { formatRupiah } from "@/lib/format";
 
 export const Route = createFileRoute("/invoice/$token")({
-  loader: ({ params }) => getInvoice({ data: { token: params.token } }),
+  loader: ({ params }) => {
+    // A malformed token can never match an invoice; fail validation as not found, not a 500.
+    if (!invoiceTokenSchema.safeParse(params.token).success) throw notFound();
+    return getInvoice({ data: { token: params.token } });
+  },
   head: ({ loaderData }) => ({
     meta: [
       { title: loaderData ? `Invoice ${loaderData.invoiceNumber} · ubeloom` : "Invoice · ubeloom" },

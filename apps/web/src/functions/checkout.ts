@@ -82,8 +82,11 @@ export const placeOrderSchema = z
 export type PlaceOrderInput = z.input<typeof placeOrderSchema>;
 export type PlaceOrderData = z.output<typeof placeOrderSchema>;
 
+/** Shape of the private invoice access token; anything else cannot match an invoice. */
+export const invoiceTokenSchema = z.string().min(16).max(128);
+
 const submitProofSchema = z.object({
-  token: z.string().min(16).max(128),
+  token: invoiceTokenSchema,
   file: z
     .instanceof(File, { message: "Pilih foto bukti transfer." })
     .refine((file) => file.size > 0, "Pilih foto bukti transfer.")
@@ -112,7 +115,7 @@ export const placeOrder = createServerFn({ method: "POST" })
 
 /** Private invoice behind the access token from checkout. */
 export const getInvoice = createServerFn({ method: "GET" })
-  .validator(z.object({ token: z.string().min(16).max(128) }))
+  .validator(z.object({ token: invoiceTokenSchema }))
   .handler(({ data }) => loadInvoice(data.token));
 
 export type InvoiceData = Awaited<ReturnType<typeof getInvoice>>;

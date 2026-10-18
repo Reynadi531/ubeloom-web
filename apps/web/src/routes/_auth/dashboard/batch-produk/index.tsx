@@ -1,10 +1,11 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { type ReactNode, useState } from "react";
 
 import { AdminPage, BatchStatusPill, PageHeading } from "@/components/admin/admin-page";
 import { CompactMetric } from "@/components/admin/metric-card";
 import { type BatchOverview, type BatchStatus, getBatchOverview } from "@/functions/batches";
-import { PLACEHOLDER_IMAGE } from "@/functions/products";
+import { moveProduct, PLACEHOLDER_IMAGE } from "@/functions/products";
 import {
   formatDayMonth,
   formatRupiah,
@@ -19,6 +20,7 @@ import {
   DeliveryZonesDialog,
   PickupSlotsDialog,
 } from "./-components/batch-dialogs";
+import { useMutationRunner } from "./-components/fields";
 
 export const Route = createFileRoute("/_auth/dashboard/batch-produk/")({
   loader: () => getBatchOverview(),
@@ -28,8 +30,7 @@ export const Route = createFileRoute("/_auth/dashboard/batch-produk/")({
   component: BatchProductsComponent,
 });
 
-type LoadedOverview = NonNullable<BatchOverview["current"]>;
-type BatchProduct = LoadedOverview["products"][number];
+type CatalogProduct = BatchOverview["products"][number];
 type Dialog = "settings" | "product" | "slots" | "zones" | null;
 
 const statusPill: Record<BatchStatus, string> = {
@@ -53,7 +54,7 @@ const textActionClassName =
   "w-fit text-[11px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop";
 
 function BatchProductsComponent() {
-  const { current, allProducts } = Route.useLoaderData();
+  const { current, products } = Route.useLoaderData();
   const [dialog, setDialog] = useState<Dialog>(null);
   const close = () => setDialog(null);
 
@@ -76,15 +77,15 @@ function BatchProductsComponent() {
           action="Buat batch"
           onAction={() => setDialog("settings")}
         />
+        <ProductCatalog products={products} />
         <BatchSettingsDialog open={dialog === "settings"} onClose={close} batch={null} />
       </AdminPage>
     );
   }
 
-  const { batch, orders, products, slots, zones } = current;
+  const { batch, orders, slots, zones } = current;
   const activeSlots = slots.filter((slot) => slot.active).length;
   const activeZones = zones.filter((zone) => zone.active).length;
-  const productIds = new Set(products.map(({ id }) => id));
 
   const metrics: { label: string; value: string; detail: string }[] = [
     {
@@ -92,7 +93,7 @@ function BatchProductsComponent() {
       value: String(orders.total),
       detail: `${orders.paid} lunas · ${orders.total - orders.paid} menunggu`,
     },
-    capacityMetric(products),
+    capacityMetric(products.filter((product) => product.inBatch)),
     { label: "PICKUP", value: String(orders.pickup), detail: `${activeSlots} slot aktif` },
     { label: "DELIVERY", value: String(orders.delivery), detail: `${activeZones} area aktif` },
   ];
@@ -123,9 +124,9 @@ function BatchProductsComponent() {
         ))}
       </section>
 
-      <section className="flex flex-col gap-5">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-[19px]/[1.25] font-extrabold text-ink">Produk yang dijual</h2>
+      <ProductCatalog
+        products={products}
+        action={
           <button
             type="button"
             onClick={() => setDialog("product")}
@@ -133,17 +134,8 @@ function BatchProductsComponent() {
           >
             + Tambah varian
           </button>
-        </div>
-
-        <div className="grid gap-3.5 xl:grid-cols-2">
-          {products.map((product) => (
-            <ProductAdminCard key={product.id} product={product} />
-          ))}
-          {products.length === 0 && (
-            <p className="text-[11px] text-plum">Belum ada produk yang dijual di batch ini.</p>
-          )}
-        </div>
-      </section>
+        }
+      />
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <section className={`${cardClassName} flex flex-col gap-[13px] p-5`}>
@@ -217,7 +209,7 @@ function BatchProductsComponent() {
         open={dialog === "product"}
         onClose={close}
         batchId={batch.id}
-        candidates={allProducts.filter(({ id }) => !productIds.has(id))}
+        candidates={products.filter((product) => !product.inBatch)}
       />
       <PickupSlotsDialog
         open={dialog === "slots"}
@@ -236,7 +228,7 @@ function BatchProductsComponent() {
 }
 
 /** Capacity of the first capacity-limited product, e.g. "KAPASITAS LUMPIA 126 / 200". */
-function capacityMetric(products: BatchProduct[]) {
+function capacityMetric(products: CatalogProduct[]) {
   const limited = products.find((product) => product.capacity != null);
   if (limited?.capacity != null) {
     return {
@@ -277,13 +269,73 @@ function BatchBanner({
   );
 }
 
-function ProductAdminCard({ product }: { product: BatchProduct }) {
-  const { slug, name, summary, unit, imageUrl, published, available, price, capacity, sold } =
-    product;
-  const stock =
-    capacity == null
-      ? `Kapasitas tanpa batas · ${sold} ${unit} terpesan`
-      : `${Math.max(0, capacity - sold)} ${unit} tersisa · harga tersimpan per invoice`;
+/** Every product in storefront order; the landing and menu pages list the published ones. */
+function ProductCatalog({ products, action }: { products: CatalogProduct[]; action?: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-[5px]">
+          <h2 className="text-[19px]/[1.25] font-extrabold text-ink">Produk di storefront</h2>
+          <p className="text-[11px] text-plum">
+            Urutan di sini sama dengan urutan di landing page dan menu. Produk draf tidak tampil.
+          </p>
+        </div>
+        {action}
+      </div>
+
+      <div className="grid gap-3.5 xl:grid-cols-2">
+        {products.map((product, index) => (
+          <ProductAdminCard
+            key={product.id}
+            product={product}
+            first={index === 0}
+            last={index === products.length - 1}
+          />
+        ))}
+        {products.length === 0 && <p className="text-[11px] text-plum">Belum ada produk.</p>}
+      </div>
+    </section>
+  );
+}
+
+function productStatus({ published, inBatch, available }: CatalogProduct) {
+  if (!published) return "DRAF";
+  if (!inBatch) return "DI LUAR BATCH";
+  return available ? "AKTIF" : "NONAKTIF";
+}
+
+function productStock({ published, inBatch, unit, capacity, sold }: CatalogProduct) {
+  if (!inBatch) {
+    return published
+      ? "Tidak dijual di batch ini · tampil HABIS di storefront"
+      : "Tidak dijual di batch ini";
+  }
+  return capacity == null
+    ? `Kapasitas tanpa batas · ${sold} ${unit} terpesan`
+    : `${Math.max(0, capacity - sold)} ${unit} tersisa · harga tersimpan per invoice`;
+}
+
+const moveButtonClassName =
+  "grid size-7 place-items-center rounded-full border border-ube-line text-deep-ube transition-colors hover:bg-vanilla disabled:pointer-events-none disabled:opacity-35";
+
+function ProductAdminCard({
+  product,
+  first,
+  last,
+}: {
+  product: CatalogProduct;
+  first: boolean;
+  last: boolean;
+}) {
+  const { id, slug, name, summary, unit, imageUrl, price } = product;
+  const run = useMutationRunner();
+  const [moving, setMoving] = useState(false);
+
+  const move = async (direction: "up" | "down") => {
+    setMoving(true);
+    await run(() => moveProduct({ data: { id, direction } }), "Urutan produk diperbarui");
+    setMoving(false);
+  };
 
   return (
     <article className={`${cardClassName} flex flex-col overflow-hidden sm:h-[190px] sm:flex-row`}>
@@ -297,18 +349,44 @@ function ProductAdminCard({ product }: { product: BatchProduct }) {
       <div className="flex min-w-0 flex-1 flex-col gap-[9px] px-[19px] py-[17px]">
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-[17px]/[1.25] font-extrabold text-ink">{name}</h3>
-          <span className="text-[9px]/[1.25] font-extrabold text-deep-ube">
-            {!published ? "DRAF" : available ? "AKTIF" : "NONAKTIF"}
+          <span className="shrink-0 text-[9px]/[1.25] font-extrabold text-deep-ube">
+            {productStatus(product)}
           </span>
         </div>
         <p className="text-[11px] text-plum">{summary}</p>
         <p className="text-base font-extrabold text-deep-ube">
           {formatRupiah(price)} / {unit}
         </p>
-        <p className="text-[10px] text-plum">{stock}</p>
-        <Link to="/dashboard/batch-produk/$slug" params={{ slug }} className={textActionClassName}>
-          {"Edit produk  →"}
-        </Link>
+        <p className="text-[10px] text-plum">{productStock(product)}</p>
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <Link
+            to="/dashboard/batch-produk/$slug"
+            params={{ slug }}
+            className={textActionClassName}
+          >
+            {"Edit produk  →"}
+          </Link>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              aria-label={`Naikkan ${name}`}
+              disabled={first || moving}
+              onClick={() => move("up")}
+              className={moveButtonClassName}
+            >
+              <ChevronUp aria-hidden className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label={`Turunkan ${name}`}
+              disabled={last || moving}
+              onClick={() => move("down")}
+              className={moveButtonClassName}
+            >
+              <ChevronDown aria-hidden className="size-4" />
+            </button>
+          </div>
+        </div>
       </div>
     </article>
   );

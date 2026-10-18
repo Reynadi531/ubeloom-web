@@ -7,7 +7,7 @@ import {
   pickupSlot,
   product,
 } from "@web-kwu/db/schema/shop";
-import { and, asc, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getCurrentBatch } from "@/lib/batches.server";
@@ -22,22 +22,39 @@ export type BatchStatus = (typeof batchStatuses)[number];
 
 const notCancelled = ne(order.fulfillmentStatus, "cancelled");
 
-/** Everything the "Batch & produk" page shows for the current batch. */
+/**
+ * Everything the "Batch & produk" page shows: the current batch plus the whole
+ * catalog in storefront order, each product annotated with its batch listing.
+ */
 export const getBatchOverview = createServerFn({ method: "GET" })
   .middleware([requireAuthMiddleware])
   .handler(async () => {
     const current = await getCurrentBatch();
-    const allProducts = await db
-      .select({ id: product.id, name: product.name })
-      .from(product)
-      .orderBy(asc(product.sortOrder), asc(product.name));
-    if (!current) return { allProducts, current: null };
+    const catalog = await db.query.product.findMany({
+      orderBy: { sortOrder: "asc", name: "asc" },
+      with: { batchProducts: { where: { batchId: current?.id ?? "" } } },
+    });
+    const sold = current ? await getSoldQuantities(current.id) : new Map<string, number>();
+    const products = catalog.map((row) => {
+      const entry = row.batchProducts[0];
+      return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        summary: row.display?.variant || row.tagline,
+        unit: row.unit,
+        imageUrl: row.imageUrl,
+        published: row.published,
+        inBatch: !!entry,
+        available: entry?.available ?? false,
+        price: entry?.price ?? row.price,
+        capacity: entry?.capacity ?? null,
+        sold: sold.get(row.id) ?? 0,
+      };
+    });
+    if (!current) return { products, current: null };
 
-    const [batchProducts, slots, zones, orderTotals, slotFill, sold] = await Promise.all([
-      db.query.batchProduct.findMany({
-        where: { batchId: current.id },
-        with: { product: true },
-      }),
+    const [slots, zones, orderTotals, slotFill] = await Promise.all([
       db.query.pickupSlot.findMany({
         where: { batchId: current.id },
         orderBy: { startsAt: "asc" },
@@ -60,14 +77,13 @@ export const getBatchOverview = createServerFn({ method: "GET" })
         .from(order)
         .where(and(eq(order.batchId, current.id), eq(order.method, "pickup"), notCancelled))
         .groupBy(order.pickupSlotId),
-      getSoldQuantities(current.id),
     ]);
 
     const filledBySlot = new Map(slotFill.map(({ slotId, filled }) => [slotId, filled]));
     const [totals] = orderTotals;
 
     return {
-      allProducts,
+      products,
       current: {
         batch: current,
         orders: {
@@ -76,25 +92,6 @@ export const getBatchOverview = createServerFn({ method: "GET" })
           pickup: totals?.pickup ?? 0,
           delivery: totals?.delivery ?? 0,
         },
-        products: [...batchProducts]
-          .sort(
-            (a, b) =>
-              a.product.sortOrder - b.product.sortOrder ||
-              a.product.name.localeCompare(b.product.name),
-          )
-          .map((entry) => ({
-            id: entry.product.id,
-            slug: entry.product.slug,
-            name: entry.product.name,
-            summary: entry.product.display?.variant || entry.product.tagline,
-            unit: entry.product.unit,
-            imageUrl: entry.product.imageUrl,
-            published: entry.product.published,
-            available: entry.available,
-            price: entry.price ?? entry.product.price,
-            capacity: entry.capacity,
-            sold: sold.get(entry.product.id) ?? 0,
-          })),
         slots: slots.map((slot) => ({ ...slot, filled: filledBySlot.get(slot.id) ?? 0 })),
         zones,
       },

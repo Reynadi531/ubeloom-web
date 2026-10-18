@@ -358,3 +358,36 @@ export const saveProduct = createServerFn({ method: "POST" })
 
     return { ok: true as const };
   });
+
+/**
+ * Swaps a product with its neighbour in storefront order (landing + menu).
+ * Renumbers the whole catalog so ties in sortOrder cannot block the move.
+ */
+export const moveProduct = createServerFn({ method: "POST" })
+  .middleware([requireAuthMiddleware])
+  .validator(z.object({ id: z.string().min(1), direction: z.enum(["up", "down"]) }))
+  .handler(async ({ data }) => {
+    await db.transaction(async (tx) => {
+      const rows = await tx
+        .select({ id: product.id, sortOrder: product.sortOrder })
+        .from(product)
+        .orderBy(asc(product.sortOrder), asc(product.name))
+        .for("update");
+      const from = rows.findIndex((row) => row.id === data.id);
+      if (from === -1) throw notFound();
+      const to = data.direction === "up" ? from - 1 : from + 1;
+      if (to < 0 || to >= rows.length) return;
+
+      const ordered = rows.map((row) => row.id);
+      [ordered[from], ordered[to]] = [ordered[to]!, ordered[from]!];
+      for (const [index, id] of ordered.entries()) {
+        if (rows.find((row) => row.id === id)?.sortOrder === index + 1) continue;
+        await tx
+          .update(product)
+          .set({ sortOrder: index + 1 })
+          .where(eq(product.id, id));
+      }
+    });
+
+    return { ok: true as const };
+  });

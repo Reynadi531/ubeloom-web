@@ -17,7 +17,7 @@ export const Route = createFileRoute("/menu")({
       {
         name: "description",
         content:
-          "Lumpia Ubi Goreng dan Sparkling Starfruit dari batch preorder ubeloom. Pilih pickup atau delivery saat checkout.",
+          "Menu lumpia ubi dan minuman segar dari batch preorder ubeloom. Pilih pickup atau delivery saat checkout.",
       },
     ],
   }),
@@ -72,7 +72,7 @@ function MenuHero({ batch }: { batch: BatchCopy }) {
             Pilih yang bikin jedamu lebih seru.
           </h1>
           <p className="text-[15px]/[1.4] text-plum">
-            Dua favorit untuk dinikmati sendiri atau dibagi. Pesan sekarang, lalu pilih pickup atau
+            Favorit untuk dinikmati sendiri atau dibagi. Pesan sekarang, lalu pilih pickup atau
             delivery saat checkout.
           </p>
         </div>

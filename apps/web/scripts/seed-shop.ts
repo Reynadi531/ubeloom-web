@@ -230,8 +230,8 @@ const october = makeBatch({
   status: "open",
   month: "2026-10",
   products: {
-    lumpia: { price: 28_000, capacity: 200 },
-    sparkling: { price: 16_000, capacity: 150 },
+    lumpia: { price: null, capacity: 200 },
+    sparkling: { price: null, capacity: 150 },
   },
   slotDay: "2026-10-24",
   zoneDays: ["2026-10-24", "2026-10-25"],

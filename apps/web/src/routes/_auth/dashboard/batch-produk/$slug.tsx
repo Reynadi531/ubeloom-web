@@ -120,6 +120,10 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
   const batchPrice = parseOptionalInt(availability.price);
   const previewPrice =
     availability.inBatch && batchPrice != null ? batchPrice : (content.price ?? 0);
+  const priceHint =
+    data.batch && availability.inBatch && batchPrice != null
+      ? `Batch ${data.batch.name} memakai harga batch ${formatRupiah(batchPrice)}, bukan harga dasar. Kosongkan harga batch di Ketersediaan agar harga dasar dipakai.`
+      : "Harga dasar; bisa diganti per batch di Ketersediaan.";
 
   const sidebar = (
     <div className="flex min-w-0 flex-col gap-[15px]">
@@ -230,7 +234,9 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
         aria-labelledby={`${tabsId}-${activeTab}-tab`}
       >
         <div className="grid items-start gap-[22px] xl:grid-cols-[596fr_384fr]">
-          {activeTab === "info" && <InfoTab content={content} image={image} update={update} />}
+          {activeTab === "info" && (
+            <InfoTab content={content} image={image} priceHint={priceHint} update={update} />
+          )}
           {activeTab === "display" && (
             <DisplayTab display={content.display} updateDisplay={updateDisplay} />
           )}
@@ -268,10 +274,12 @@ function SectionTitle({ title, description }: { title: string; description: stri
 function InfoTab({
   content,
   image,
+  priceHint,
   update,
 }: {
   content: EditorProduct;
   image: string;
+  priceHint: string;
   update: <K extends keyof EditorProduct>(key: K, value: EditorProduct[K]) => void;
 }) {
   const [editingImage, setEditingImage] = useState(false);
@@ -341,10 +349,7 @@ function InfoTab({
             onChange={(value) => update("category", value)}
           />
         </Field>
-        <Field
-          label={`Harga per ${content.unit}`}
-          hint="Harga dasar; bisa diganti per batch di Ketersediaan."
-        >
+        <Field label={`Harga per ${content.unit}`} hint={priceHint}>
           <input
             value={formatRupiah(content.price)}
             inputMode="numeric"

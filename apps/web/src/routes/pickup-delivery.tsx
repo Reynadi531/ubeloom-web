@@ -8,13 +8,12 @@ import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefrontBatch } from "@/functions/products";
 
 export const Route = createFileRoute("/pickup-delivery")({
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
       { title: "Pickup & delivery · ubeloom" },
       {
         name: "description",
-        content:
-          "Ambil pesanan ubeloom di Kampus ubeloom atau kirim ke alamatmu. Jadwal, alamat, dan ongkir tampil sebelum invoice dibuat.",
+        content: `Ambil pesanan ubeloom di ${batchCopy(loaderData ?? null).pickupLocation} atau kirim ke alamatmu. Jadwal, alamat, dan ongkir tampil sebelum invoice dibuat.`,
       },
     ],
   }),

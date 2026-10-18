@@ -6,7 +6,7 @@ import { batchCopy } from "@/components/storefront/batch-copy";
 import PreorderInvitation from "@/components/storefront/preorder-invitation";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
-import { getStorefrontBatch } from "@/functions/products";
+import { getStorefront } from "@/functions/products";
 
 export const Route = createFileRoute("/cara-pesan")({
   head: () => ({
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/cara-pesan")({
       },
     ],
   }),
-  loader: () => getStorefrontBatch(),
+  loader: () => getStorefront(),
   component: CaraPesanComponent,
 });
 
@@ -27,16 +27,26 @@ type BatchCopy = ReturnType<typeof batchCopy>;
 
 const flowSummary = ["Pilih menu", "Pickup / delivery", "Invoice", "QRIS & bukti", "Diproses"];
 
-const steps: { title: string; description: string }[] = [
+/** "A", "A atau B", "A, B, atau C"; generic wording when the menu is empty. */
+const listMenu = (names: string[]) => {
+  if (names.length === 0) return "menu favoritmu";
+  if (names.length === 1) return names[0]!;
+  const last = names.at(-1)!;
+  const rest = names.slice(0, -1).join(", ");
+  return names.length === 2 ? `${rest} atau ${last}` : `${rest}, atau ${last}`;
+};
+
+const orderSteps = (
+  productNames: string[],
+  batch: BatchCopy,
+): { title: string; description: string }[] => [
   {
     title: "Pilih menu & jumlah",
-    description:
-      "Masukkan Lumpia Ubi Goreng atau Sparkling Starfruit dengan chia seed ke preorder. Lanjut sebagai tamu tanpa membuat akun.",
+    description: `Masukkan ${listMenu(productNames)} ke preorder. Lanjut sebagai tamu tanpa membuat akun.`,
   },
   {
     title: "Tentukan cara menerima",
-    description:
-      "Isi nama dan WhatsApp aktif, lalu pilih pickup di Kampus ubeloom atau delivery. Untuk delivery, isi alamat; ongkir dan total tampil sebelum konfirmasi.",
+    description: `Isi nama dan WhatsApp aktif, lalu pilih pickup di ${batch.pickupLocation} atau delivery. Untuk delivery, isi alamat; ongkir dan total tampil sebelum konfirmasi.`,
   },
   {
     title: "Periksa pesanan, terima invoice",
@@ -58,7 +68,12 @@ const steps: { title: string; description: string }[] = [
 const stepNumber = (index: number) => String(index + 1).padStart(2, "0");
 
 function CaraPesanComponent() {
-  const batch = batchCopy(Route.useLoaderData());
+  const { batch: current, products } = Route.useLoaderData();
+  const batch = batchCopy(current);
+  const steps = orderSteps(
+    products.map((item) => item.name),
+    batch,
+  );
 
   return (
     <div className="flex min-h-svh flex-col bg-white font-body text-ink">
@@ -67,7 +82,7 @@ function CaraPesanComponent() {
       <main className="flex-1">
         <OrderingGuideHero />
         <FlowSummary />
-        <PreorderGuide batch={batch} />
+        <PreorderGuide batch={batch} steps={steps} />
         <PreorderInvitation
           title="Siap untuk jeda yang lebih manis?"
           description={
@@ -123,7 +138,13 @@ function FlowSummary() {
   );
 }
 
-function PreorderGuide({ batch }: { batch: BatchCopy }) {
+function PreorderGuide({
+  batch,
+  steps,
+}: {
+  batch: BatchCopy;
+  steps: ReturnType<typeof orderSteps>;
+}) {
   return (
     <section className="mx-auto flex max-w-[1280px] flex-col gap-6 px-5 py-8 lg:px-16 lg:py-[42px]">
       <div className="flex flex-col gap-[5px]">

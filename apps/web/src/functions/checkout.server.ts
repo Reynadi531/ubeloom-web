@@ -18,7 +18,7 @@ import {
   formatWindow,
 } from "@/lib/format";
 import { generateInvoiceNumber, type FulfillmentMethod, type PaymentStatus } from "@/lib/orders";
-import { productCoverUrl } from "@/lib/product-images";
+import { productCoverUrl, qrisImageUrl } from "@/lib/product-images";
 import { db } from "@/services";
 
 import {
@@ -222,6 +222,7 @@ export async function loadInvoice(token: string) {
   return {
     invoiceNumber: row.invoiceNumber,
     merchantName: settings.qrisMerchantName,
+    qrisImageUrl: settings.qrisImageKey ? qrisImageUrl(settings.qrisImageKey) : null,
     batchOpen: row.batch.status === "open",
     createdAt: formatFullDateTime(row.createdAt),
     customerName: row.customerName,

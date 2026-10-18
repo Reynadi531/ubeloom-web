@@ -2,7 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { CASH_PAYMENT_METHOD } from "@/lib/orders";
-import { getShopSettings, saveShopSettings } from "@/lib/settings.server";
+import { MAX_PRODUCT_IMAGE_BYTES } from "@/lib/product-images";
+import { deleteImages, storeImage } from "@/lib/product-images.server";
+import { getShopSettings, replaceQrisImage, saveShopSettings } from "@/lib/settings.server";
 import { requireAuthMiddleware } from "@/middleware/auth";
 
 export const shopSettingsSchema = z.object({
@@ -45,5 +47,44 @@ export const updateSettings = createServerFn({ method: "POST" })
   .validator(shopSettingsSchema)
   .handler(async ({ data, context }) => {
     await saveShopSettings(data, context.session.user.id);
+    return { ok: true };
+  });
+
+/** Uploads (multipart) a QRIS code image and makes it the one shown on invoices. */
+export const uploadQrisImage = createServerFn({ method: "POST" })
+  .middleware([requireAuthMiddleware])
+  .validator((input: FormData) => {
+    if (!(input instanceof FormData)) throw new Error("Format unggahan tidak valid.");
+    return z
+      .object({
+        file: z
+          .instanceof(File, { message: "Pilih gambar QRIS." })
+          .refine((file) => file.size > 0, "Pilih gambar QRIS.")
+          .refine(
+            (file) => file.size <= MAX_PRODUCT_IMAGE_BYTES,
+            `Gambar maksimal ${MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.`,
+          ),
+      })
+      .parse({ file: input.get("file") });
+  })
+  .handler(async ({ data, context }) => {
+    const key = await storeImage(data.file, "qris");
+    let previous: string | null;
+    try {
+      previous = await replaceQrisImage(key, context.session.user.id);
+    } catch (error) {
+      await deleteImages([key]);
+      throw error;
+    }
+    if (previous) await deleteImages([previous]);
+    return { key };
+  });
+
+/** Removes the QRIS image; invoices fall back to "QRIS belum tersedia". */
+export const removeQrisImage = createServerFn({ method: "POST" })
+  .middleware([requireAuthMiddleware])
+  .handler(async ({ context }) => {
+    const previous = await replaceQrisImage(null, context.session.user.id);
+    if (previous) await deleteImages([previous]);
     return { ok: true };
   });

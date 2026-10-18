@@ -377,6 +377,8 @@ export const shopSetting = pgTable("shop_setting", {
   brandName: text("brand_name").notNull().default("ubeloom"),
   /** Merchant name customers must match in their QRIS app; empty until configured. */
   qrisMerchantName: text("qris_merchant_name").notNull().default(""),
+  /** Object key of the QRIS code image (`qris/<uuid>.<ext>`); null until uploaded. */
+  qrisImageKey: text("qris_image_key"),
   /** Non-cash payment methods offered on manual orders, e.g. "Transfer bank · BCA". */
   paymentMethods: jsonb("payment_methods").$type<string[]>().notNull().default(["QRIS"]),
   /** Closing note printed on issued invoices. */

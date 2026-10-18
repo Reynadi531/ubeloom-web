@@ -1,11 +1,18 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { Plus, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { ImagePlus, Plus, QrCode, Trash2, X } from "lucide-react";
+import { type ChangeEvent, type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { AdminPage, PageHeading } from "@/components/admin/admin-page";
 import { fieldErrors, serverErrorMessage } from "@/components/admin/orders/form-errors";
-import { getSettings, shopSettingsSchema, updateSettings } from "@/functions/settings";
+import {
+  getSettings,
+  removeQrisImage,
+  shopSettingsSchema,
+  updateSettings,
+  uploadQrisImage,
+} from "@/functions/settings";
+import { MAX_PRODUCT_IMAGE_BYTES, PRODUCT_IMAGE_ACCEPT, qrisImageUrl } from "@/lib/product-images";
 
 export const Route = createFileRoute("/_auth/dashboard/pengaturan")({
   head: () => ({
@@ -108,6 +115,8 @@ function SettingsComponent() {
             )}
           </label>
 
+          <QrisImageField imageKey={settings.qrisImageKey} />
+
           <fieldset className="flex flex-col gap-1.5">
             <legend className={`${fieldLabelClassName} mb-1.5`}>
               Metode bayar pesanan manual (Tunai selalu tersedia)
@@ -167,5 +176,105 @@ function SettingsComponent() {
         </button>
       </form>
     </AdminPage>
+  );
+}
+
+/**
+ * QRIS code shown on invoices. Uploads and removals apply immediately, independent
+ * of the settings form below.
+ */
+function QrisImageField({ imageKey }: { imageKey: string | null }) {
+  const router = useRouter();
+  const inputId = useId();
+  const [busy, setBusy] = useState(false);
+
+  const upload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
+      toast.error(`Gambar maksimal ${MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = new FormData();
+      data.set("file", file);
+      await uploadQrisImage({ data });
+      toast.success(imageKey ? "QRIS diganti." : "QRIS diunggah.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(serverErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Hapus gambar QRIS? Invoice akan menampilkan "QRIS belum tersedia".')) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await removeQrisImage();
+      toast.success("QRIS dihapus.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(serverErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className={fieldLabelClassName}>Gambar QRIS</span>
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex size-[160px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ube-line bg-surface">
+          {imageKey ? (
+            <img
+              src={qrisImageUrl(imageKey)}
+              alt="QRIS toko"
+              className="size-full object-contain"
+            />
+          ) : (
+            <QrCode aria-hidden className="size-10 text-plum" />
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="max-w-[320px] text-[10px] text-plum">
+            Tampil di invoice untuk dipindai pelanggan. JPG, PNG atau WEBP, maksimal{" "}
+            {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB. Perubahan langsung berlaku.
+          </span>
+          <input
+            id={inputId}
+            type="file"
+            accept={PRODUCT_IMAGE_ACCEPT}
+            disabled={busy}
+            onChange={upload}
+            className="sr-only"
+          />
+          <label
+            htmlFor={inputId}
+            aria-disabled={busy}
+            className="flex w-fit cursor-pointer items-center gap-1.5 rounded-full border-[1.5px] border-deep-ube px-4 py-2 text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla aria-disabled:pointer-events-none aria-disabled:opacity-60"
+          >
+            <ImagePlus className="size-3.5" />
+            {busy ? "Memproses…" : imageKey ? "Ganti QRIS" : "Unggah QRIS"}
+          </label>
+          {imageKey && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={remove}
+              className="flex w-fit items-center gap-1.5 text-[11px] font-bold text-plum hover:text-[#b42318] disabled:opacity-60"
+            >
+              <Trash2 className="size-3.5" />
+              Hapus QRIS
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

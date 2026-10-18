@@ -8,8 +8,13 @@ export const PRODUCT_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp";
 /** Object keys written by `storeProductImage`, e.g. `products/<uuid>.webp`. */
 export const productImageKeyPattern = /^products\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
 
-/** Public URL of a stored product photo; /media streams it from object storage. */
+/** Object keys of the QRIS code image, e.g. `qris/<uuid>.png`. */
+export const qrisImageKeyPattern = /^qris\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
+
+/** Public URL of a stored image (product photo or QRIS code); /media streams it from object storage. */
 export const productImageUrl = (key: string) => `/media/${key}`;
+
+export const qrisImageUrl = productImageUrl;
 
 /** Cover photo URL (first image), or the placeholder. */
 export const productCoverUrl = (images: readonly string[]) =>

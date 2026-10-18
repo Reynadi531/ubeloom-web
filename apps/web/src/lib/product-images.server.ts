@@ -24,24 +24,27 @@ const startsWith = (bytes: Uint8Array, magic: number[]) =>
   magic.every((byte, index) => bytes[index] === byte);
 
 /**
- * Checks a product photo by its bytes (not the browser-supplied type) and stores it
- * under `products/`. Returns the object key to keep in `product.images`.
+ * Checks an image by its bytes (not the browser-supplied type) and stores it under
+ * `<prefix>/` with a random name. Returns the object key.
  */
-export async function storeProductImage(file: File) {
+export async function storeImage(file: File, prefix: "products" | "qris") {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const type = imageTypes[file.type as ImageType];
   if (!type?.matches(bytes)) throw new Error("Foto harus berupa file JPG, PNG atau WEBP.");
-  const key = `products/${crypto.randomUUID()}.${type.ext}`;
+  const key = `${prefix}/${crypto.randomUUID()}.${type.ext}`;
   await storage.putObject(key, bytes, file.type);
   return key;
 }
 
-/** Best-effort cleanup of photos no product references anymore. */
-export async function deleteProductImages(keys: readonly string[]) {
+/** Stores a product photo; the key is kept in `product.images`. */
+export const storeProductImage = (file: File) => storeImage(file, "products");
+
+/** Best-effort cleanup of images nothing references anymore. */
+export async function deleteImages(keys: readonly string[]) {
   try {
     await storage.deleteObjects(keys);
   } catch (error) {
     // An orphaned object only costs storage; never fail the save over it.
-    console.error("Failed to delete product images", keys, error);
+    console.error("Failed to delete images", keys, error);
   }
 }

@@ -212,7 +212,7 @@ function InvoiceComponent() {
             <section className="flex flex-col gap-3 rounded-[16px] border border-ube-line bg-white p-6">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-xl font-bold">Bayar dengan QRIS</h2>
-                <Badge tone="ube">QR BELUM TERSEDIA</Badge>
+                <Badge tone="ube">{invoice.qrisImageUrl ? "QR RESMI" : "QR BELUM TERSEDIA"}</Badge>
               </div>
               <p className="font-data text-[10px] font-bold text-plum">
                 NAMA MERCHANT YANG HARUS DICOCOKKAN
@@ -222,13 +222,30 @@ function InvoiceComponent() {
                   ? `${invoice.merchantName} · cocokkan di aplikasi`
                   : "Diumumkan bersama QR resmi"}
               </p>
-              <div className="flex h-[216px] flex-col items-center justify-center gap-2 rounded-[10px] border border-ube-line bg-vanilla text-center">
-                <QrCode aria-hidden className="size-[54px] text-deep-ube" />
-                <p className="font-data text-xs font-bold text-deep-ube">QRIS BELUM TERSEDIA</p>
-                <p className="px-4 text-[10px] text-plum">
-                  Jangan bayar sampai QR resmi tampil di invoice ini.
-                </p>
-              </div>
+              {invoice.qrisImageUrl ? (
+                <div className="flex flex-col items-center gap-2 rounded-[10px] border border-ube-line bg-white p-3">
+                  <img
+                    src={invoice.qrisImageUrl}
+                    alt={`QRIS ${invoice.merchantName || "ubeloom"}`}
+                    className="aspect-square w-full max-w-[280px] object-contain"
+                  />
+                  <a
+                    href={invoice.qrisImageUrl}
+                    download={`qris-${invoice.invoiceNumber}`}
+                    className="text-xs font-bold text-deep-ube hover:text-ube-pop"
+                  >
+                    Simpan gambar QR
+                  </a>
+                </div>
+              ) : (
+                <div className="flex h-[216px] flex-col items-center justify-center gap-2 rounded-[10px] border border-ube-line bg-vanilla text-center">
+                  <QrCode aria-hidden className="size-[54px] text-deep-ube" />
+                  <p className="font-data text-xs font-bold text-deep-ube">QRIS BELUM TERSEDIA</p>
+                  <p className="px-4 text-[10px] text-plum">
+                    Jangan bayar sampai QR resmi tampil di invoice ini.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
                 <p className="text-xs font-bold">Masukkan nominal tepat</p>
                 <p className="font-display text-2xl font-bold text-deep-ube">{total}</p>
@@ -253,7 +270,9 @@ function InvoiceComponent() {
               <NumberedSteps
                 className="gap-3.5"
                 steps={[
-                  "Saat QRIS resmi tampil, pindai dengan aplikasi pembayaran.",
+                  invoice.qrisImageUrl
+                    ? "Pindai QR di atas dengan aplikasi pembayaran."
+                    : "Saat QRIS resmi tampil, pindai dengan aplikasi pembayaran.",
                   "Jika memakai satu ponsel, simpan gambar QR lalu impor bila didukung.",
                   `Masukkan tepat ${total}; pastikan merchant ubeloom sebelum membayar.`,
                 ]}

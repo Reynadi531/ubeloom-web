@@ -22,7 +22,7 @@ import {
   productImageKeyPattern,
   productImageUrl,
 } from "@/lib/product-images";
-import { deleteProductImages, storeProductImage } from "@/lib/product-images.server";
+import { deleteImages, storeProductImage } from "@/lib/product-images.server";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db } from "@/services";
 
@@ -374,7 +374,7 @@ export const saveProduct = createServerFn({ method: "POST" })
       return removed;
     });
     // Only after commit: a rolled-back save must keep its photos.
-    await deleteProductImages(removedImages);
+    await deleteImages(removedImages);
 
     return { ok: true as const };
   });

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { productImageKeyPattern } from "@/lib/product-images";
+import { productImageKeyPattern, qrisImageKeyPattern } from "@/lib/product-images";
 import { storage } from "@/services";
 
 /**
- * Streams public product photos from the private bucket. Only `products/` keys are
- * served, so payment proofs stay reachable through presigned URLs alone. Keys are
+ * Streams public product photos and the QRIS code from the private bucket. Only
+ * `products/` and `qris/` keys are served, so payment proofs stay reachable through presigned URLs alone. Keys are
  * random and never rewritten, so responses are cached as immutable.
  */
 export const Route = createFileRoute("/media/$")({
@@ -13,7 +13,8 @@ export const Route = createFileRoute("/media/$")({
     handlers: {
       GET: async ({ params }) => {
         const key = params._splat ?? "";
-        if (!productImageKeyPattern.test(key)) return new Response("Not found", { status: 404 });
+        if (!productImageKeyPattern.test(key) && !qrisImageKeyPattern.test(key))
+          return new Response("Not found", { status: 404 });
 
         const object = await storage.getObject(key);
         if (!object) return new Response("Not found", { status: 404 });

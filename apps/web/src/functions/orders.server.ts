@@ -312,7 +312,7 @@ export async function buildOrdersCsv(
 /* -------------------------------------------------------------------------- */
 
 /** Units already committed per product in a batch (cancelled orders excluded). */
-async function orderedQuantities(executor: Executor, batchId: string, productIds: string[]) {
+export async function orderedQuantities(executor: Executor, batchId: string, productIds: string[]) {
   if (productIds.length === 0) return new Map<string, number>();
   const rows = await executor
     .select({
@@ -333,7 +333,7 @@ async function orderedQuantities(executor: Executor, batchId: string, productIds
 }
 
 /** Non-cancelled orders booked per pickup slot. */
-async function slotBookings(executor: Executor, slotIds: string[]) {
+export async function slotBookings(executor: Executor, slotIds: string[]) {
   if (slotIds.length === 0) return new Map<string, number>();
   const rows = await executor
     .select({ slotId: order.pickupSlotId, count: sql<number>`count(*)::int` })
@@ -403,7 +403,7 @@ export async function loadManualOrderForm() {
 }
 
 /** Error whose message is safe and useful to show on the form. */
-class OrderError extends Error {}
+export class OrderError extends Error {}
 
 export function isUniqueViolation(error: unknown, constraintHint = ""): boolean {
   let current: unknown = error;
@@ -413,6 +413,89 @@ export function isUniqueViolation(error: unknown, constraintHint = ""): boolean 
     current = candidate.cause;
   }
   return false;
+}
+
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Merges duplicate lines so capacity checks see the real quantity per product. */
+export function mergeQuantities(items: { productId: string; quantity: number }[]) {
+  const quantities = new Map<string, number>();
+  for (const { productId, quantity } of items) {
+    quantities.set(productId, (quantities.get(productId) ?? 0) + quantity);
+  }
+  return quantities;
+}
+
+/** Locks the batch row so concurrent orders cannot oversell capacity; it must be open. */
+export async function lockOpenBatch(tx: Transaction, batchId: string) {
+  const [lockedBatch] = await tx.select().from(batch).where(eq(batch.id, batchId)).for("update");
+  if (!lockedBatch) throw new OrderError("Batch tidak ditemukan.");
+  if (lockedBatch.status !== "open") {
+    throw new OrderError(`Batch ${lockedBatch.name} sedang tidak dibuka untuk pesanan.`);
+  }
+  return lockedBatch;
+}
+
+/**
+ * Prices an order inside a transaction holding the batch lock: checks availability and
+ * capacity, snapshots unit prices, and resolves the pickup slot or delivery zone fee.
+ */
+export async function priceOrder(
+  tx: Transaction,
+  lockedBatch: BatchRow,
+  quantities: Map<string, number>,
+  method: FulfillmentMethod,
+  scheduleId: string,
+) {
+  const productIds = [...quantities.keys()];
+  const batchProducts = await tx.query.batchProduct.findMany({
+    where: { batchId: lockedBatch.id, productId: { in: productIds } },
+    with: { product: true },
+  });
+  const ordered = await orderedQuantities(tx, lockedBatch.id, productIds);
+
+  const lines = productIds.map((productId) => {
+    const entry = batchProducts.find((candidate) => candidate.productId === productId);
+    if (!entry || !entry.available) {
+      throw new OrderError("Ada produk yang tidak tersedia di batch ini.");
+    }
+    const quantity = quantities.get(productId) ?? 0;
+    if (entry.capacity !== null) {
+      const remaining = entry.capacity - (ordered.get(productId) ?? 0);
+      if (quantity > remaining) {
+        throw new OrderError(
+          remaining > 0
+            ? `Stok ${entry.product.name} tinggal ${remaining}.`
+            : `${entry.product.name} sudah habis untuk batch ini.`,
+        );
+      }
+    }
+    const unitPrice = entry.price ?? entry.product.price;
+    return {
+      productId,
+      productName: entry.product.name,
+      unitPrice,
+      quantity,
+      lineTotal: unitPrice * quantity,
+    };
+  });
+
+  if (method === "pickup") {
+    const [slot] = await tx
+      .select()
+      .from(pickupSlot)
+      .where(and(eq(pickupSlot.id, scheduleId), eq(pickupSlot.batchId, lockedBatch.id)));
+    if (!slot || !slot.active) throw new OrderError("Jadwal pickup tidak tersedia.");
+    const booked = (await slotBookings(tx, [slot.id])).get(slot.id) ?? 0;
+    if (booked >= slot.capacity) throw new OrderError("Slot pickup ini sudah penuh.");
+    return { lines, shippingFee: 0, pickupSlotId: slot.id, deliveryZoneId: null };
+  }
+
+  const zone = await tx.query.deliveryZone.findFirst({
+    where: { id: scheduleId, batchId: lockedBatch.id },
+  });
+  if (!zone || !zone.active) throw new OrderError("Jadwal delivery tidak tersedia.");
+  return { lines, shippingFee: zone.fee, pickupSlotId: null, deliveryZoneId: zone.id };
 }
 
 const CASH = "Tunai";
@@ -428,79 +511,20 @@ const CASH = "Tunai";
  *   up in "Verifikasi bayar" like a customer-submitted proof.
  */
 export async function insertManualOrder(data: CreateOrderData, actorId: string) {
-  // Merge duplicate lines so capacity checks see the real quantity.
-  const quantities = new Map<string, number>();
-  for (const { productId, quantity } of data.items) {
-    quantities.set(productId, (quantities.get(productId) ?? 0) + quantity);
-  }
-  const productIds = [...quantities.keys()];
+  const quantities = mergeQuantities(data.items);
 
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       return await db.transaction(async (tx) => {
-        // Lock the batch row so concurrent orders cannot oversell capacity.
-        const [lockedBatch] = await tx
-          .select()
-          .from(batch)
-          .where(eq(batch.id, data.batchId))
-          .for("update");
-        if (!lockedBatch) throw new OrderError("Batch tidak ditemukan.");
-        if (lockedBatch.status !== "open") {
-          throw new OrderError(`Batch ${lockedBatch.name} sedang tidak dibuka untuk pesanan.`);
-        }
+        const lockedBatch = await lockOpenBatch(tx, data.batchId);
 
-        const batchProducts = await tx.query.batchProduct.findMany({
-          where: { batchId: lockedBatch.id, productId: { in: productIds } },
-          with: { product: true },
-        });
-        const ordered = await orderedQuantities(tx, lockedBatch.id, productIds);
-
-        const lines = productIds.map((productId) => {
-          const entry = batchProducts.find((candidate) => candidate.productId === productId);
-          if (!entry || !entry.available) {
-            throw new OrderError("Ada produk yang tidak tersedia di batch ini.");
-          }
-          const quantity = quantities.get(productId) ?? 0;
-          if (entry.capacity !== null) {
-            const remaining = entry.capacity - (ordered.get(productId) ?? 0);
-            if (quantity > remaining) {
-              throw new OrderError(
-                remaining > 0
-                  ? `Stok ${entry.product.name} tinggal ${remaining}.`
-                  : `${entry.product.name} sudah habis untuk batch ini.`,
-              );
-            }
-          }
-          const unitPrice = entry.price ?? entry.product.price;
-          return {
-            productId,
-            productName: entry.product.name,
-            unitPrice,
-            quantity,
-            lineTotal: unitPrice * quantity,
-          };
-        });
-
-        let shippingFee = 0;
-        let pickupSlotId: string | null = null;
-        let deliveryZoneId: string | null = null;
-        if (data.method === "pickup") {
-          const [slot] = await tx
-            .select()
-            .from(pickupSlot)
-            .where(and(eq(pickupSlot.id, data.scheduleId), eq(pickupSlot.batchId, lockedBatch.id)));
-          if (!slot || !slot.active) throw new OrderError("Jadwal pickup tidak tersedia.");
-          const booked = (await slotBookings(tx, [slot.id])).get(slot.id) ?? 0;
-          if (booked >= slot.capacity) throw new OrderError("Slot pickup ini sudah penuh.");
-          pickupSlotId = slot.id;
-        } else {
-          const zone = await tx.query.deliveryZone.findFirst({
-            where: { id: data.scheduleId, batchId: lockedBatch.id },
-          });
-          if (!zone || !zone.active) throw new OrderError("Jadwal delivery tidak tersedia.");
-          deliveryZoneId = zone.id;
-          shippingFee = zone.fee;
-        }
+        const { lines, shippingFee, pickupSlotId, deliveryZoneId } = await priceOrder(
+          tx,
+          lockedBatch,
+          quantities,
+          data.method,
+          data.scheduleId,
+        );
 
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
         const total = subtotal + shippingFee;

@@ -1,4 +1,4 @@
-import { defineRelationsPart } from "drizzle-orm";
+import { defineRelationsPart, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -180,6 +180,11 @@ export const order = pgTable(
     customerName: text("customer_name").notNull(),
     customerPhone: text("customer_phone").notNull(),
     customerEmail: text("customer_email"),
+    /** Unguessable secret behind the customer's private invoice link. */
+    accessToken: text("access_token")
+      .notNull()
+      .unique()
+      .default(sql`replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')`),
     method: fulfillmentMethod("method").notNull(),
     pickupSlotId: text("pickup_slot_id").references(() => pickupSlot.id, {
       onDelete: "set null",
@@ -188,6 +193,9 @@ export const order = pgTable(
       onDelete: "set null",
     }),
     address: text("address"),
+    /** Delivery recipient when someone other than the customer receives the package. */
+    recipientName: text("recipient_name"),
+    recipientPhone: text("recipient_phone"),
     /** Free-form label, e.g. "Transfer bank · BCA", "QRIS", "Tunai". */
     paymentMethod: text("payment_method").notNull(),
     paymentStatus: paymentStatus("payment_status").notNull().default("unpaid"),
@@ -262,6 +270,8 @@ export const paymentAttempt = pgTable(
     /** Reference the customer typed or that appears on their proof. */
     customerReference: text("customer_reference").notNull(),
     proofUrl: text("proof_url"),
+    /** Object storage key of a customer-uploaded proof (private bucket, served presigned). */
+    proofKey: text("proof_key"),
     status: paymentAttemptStatus("status").notNull().default("pending"),
     /** Merchant-side mutation reference entered by the reviewer on approval. */
     merchantReference: text("merchant_reference"),

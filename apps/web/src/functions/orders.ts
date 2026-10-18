@@ -52,7 +52,7 @@ export const manualPaymentMethods = [
   "Tunai",
 ] as const;
 
-const phoneSchema = z
+export const phoneSchema = z
   .string("Nomor WhatsApp wajib diisi.")
   .trim()
   .transform((value) => value.replace(/[\s().-]/g, ""))

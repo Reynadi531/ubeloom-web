@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getCurrentBatch } from "@/lib/batches.server";
 import { fromDateInputValue, toDateInputValue } from "@/lib/format";
 import { requireAuthMiddleware } from "@/middleware/auth";
-import { db } from "@/services";
+import { db, storage } from "@/services";
 
 /** Rejected attempts stay visible in the queue ("Ditolak sebelumnya") for this long. */
 const RECENT_REJECTION_DAYS = 7;
@@ -107,24 +107,27 @@ export const getPaymentReview = createServerFn({ method: "GET" })
     });
 
     // Pending first (oldest first), then the recent rejections.
-    const attempts = [
-      ...rows.filter(({ status }) => status === "pending"),
-      ...rows.filter(({ status }) => status !== "pending"),
-    ].map((row) => ({
-      id: row.id,
-      attempt: row.attempt,
-      status: row.status,
-      claimedAmount: row.claimedAmount,
-      claimedPaidAt: row.claimedPaidAt,
-      customerReference: row.customerReference,
-      merchantReference: row.merchantReference,
-      proofUrl: row.proofUrl,
-      reviewNote: row.reviewNote,
-      reviewedAt: row.reviewedAt,
-      reviewedBy: row.reviewedBy?.name ?? null,
-      createdAt: row.createdAt,
-      order: row.order,
-    }));
+    const attempts = await Promise.all(
+      [
+        ...rows.filter(({ status }) => status === "pending"),
+        ...rows.filter(({ status }) => status !== "pending"),
+      ].map(async (row) => ({
+        id: row.id,
+        attempt: row.attempt,
+        status: row.status,
+        claimedAmount: row.claimedAmount,
+        claimedPaidAt: row.claimedPaidAt,
+        customerReference: row.customerReference,
+        merchantReference: row.merchantReference,
+        // Customer uploads live in the private bucket; hand the reviewer a short-lived link.
+        proofUrl: row.proofKey ? await storage.presignGet(row.proofKey) : row.proofUrl,
+        reviewNote: row.reviewNote,
+        reviewedAt: row.reviewedAt,
+        reviewedBy: row.reviewedBy?.name ?? null,
+        createdAt: row.createdAt,
+        order: row.order,
+      })),
+    );
 
     return {
       batch: currentBatch ? { name: currentBatch.name, status: currentBatch.status } : null,

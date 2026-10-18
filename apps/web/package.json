@@ -21,6 +21,7 @@
     "@varlock/vite-integration": "1.5.1",
     "@web-kwu/auth": "workspace:*",
     "@web-kwu/db": "workspace:*",
+    "@web-kwu/storage": "workspace:*",
     "@web-kwu/ui": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",

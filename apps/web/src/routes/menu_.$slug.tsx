@@ -11,7 +11,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import ProductNotFound from "@/components/storefront/product-not-found";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
@@ -97,6 +96,7 @@ function Breadcrumb({ name }: { name: string }) {
 
 function ProductHero({ product }: { product: ProductDetail }) {
   const {
+    slug,
     name,
     collection,
     subtitle,
@@ -161,7 +161,7 @@ function ProductHero({ product }: { product: ProductDetail }) {
 
         <hr className="border-ube-line" />
         <PreorderAction
-          name={name}
+          slug={slug}
           available={available}
           availability={availability}
           maxQuantity={Math.min(MAX_QUANTITY, remaining ?? MAX_QUANTITY)}
@@ -178,12 +178,12 @@ const MIN_QUANTITY = 1;
 const MAX_QUANTITY = 20;
 
 function PreorderAction({
-  name,
+  slug,
   available,
   availability,
   maxQuantity,
 }: {
-  name: string;
+  slug: string;
   available: boolean;
   availability: string;
   maxQuantity: number;
@@ -215,19 +215,23 @@ function PreorderAction({
           +
         </button>
       </div>
-      {/* No preorder flow (design frame 02) to hand off to yet, so confirm with a toast. */}
-      <button
-        type="button"
-        disabled={!available}
-        onClick={() => toast.success(`${quantity} × ${name} siap dipesan.`)}
-        className="h-[50px] flex-1 rounded-full bg-deep-ube px-[22px] text-[15px] font-bold whitespace-pre text-vanilla transition-colors hover:bg-ube-pop disabled:bg-plum disabled:opacity-60"
-      >
-        {available
-          ? "Pesan sekarang →"
-          : availability === "HABIS"
-            ? "Stok habis"
-            : "Preorder ditutup"}
-      </button>
+      {available ? (
+        <Link
+          to="/pesan"
+          search={{ produk: slug, jumlah: quantity }}
+          className="flex h-[50px] flex-1 items-center justify-center rounded-full bg-deep-ube px-[22px] text-[15px] font-bold whitespace-pre text-vanilla transition-colors hover:bg-ube-pop"
+        >
+          Pesan sekarang →
+        </Link>
+      ) : (
+        <button
+          type="button"
+          disabled
+          className="h-[50px] flex-1 rounded-full bg-plum px-[22px] text-[15px] font-bold whitespace-pre text-vanilla opacity-60"
+        >
+          {availability === "HABIS" ? "Stok habis" : "Preorder ditutup"}
+        </button>
+      )}
     </div>
   );
 }

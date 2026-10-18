@@ -16,7 +16,6 @@ import {
   placeOrder,
   placeOrderSchema,
 } from "@/functions/checkout";
-import { PLACEHOLDER_IMAGE } from "@/functions/products";
 import { formatRupiah } from "@/lib/format";
 import type { FulfillmentMethod } from "@/lib/orders";
 import { cn } from "@web-kwu/ui/lib/utils";
@@ -240,7 +239,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
                     className="flex items-center gap-3.5 border-b border-ube-line py-2"
                   >
                     <img
-                      src={product.image ?? PLACEHOLDER_IMAGE}
+                      src={product.image}
                       alt=""
                       width={58}
                       height={58}

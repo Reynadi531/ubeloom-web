@@ -1,9 +1,11 @@
 /**
  * Private S3-compatible object storage (RustFS in development). Objects are never
- * public: readers get short-lived presigned URLs.
+ * public: readers get short-lived presigned URLs, or the app streams them itself
+ * (product photos via /media).
  */
 import {
   CreateBucketCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -56,6 +58,35 @@ export function createStorage(env: StorageConfig) {
       await ensureBucket();
       await client.send(
         new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }),
+      );
+    },
+
+    /** Streams an object; resolves to null when the key does not exist. */
+    async getObject(key: string) {
+      await ensureBucket();
+      try {
+        const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        if (!object.Body) return null;
+        return {
+          body: object.Body.transformToWebStream(),
+          contentType: object.ContentType,
+          contentLength: object.ContentLength,
+          etag: object.ETag,
+        };
+      } catch (error) {
+        if (error instanceof Error && error.name === "NoSuchKey") return null;
+        throw error;
+      }
+    },
+
+    async deleteObjects(keys: readonly string[]) {
+      if (keys.length === 0) return;
+      await ensureBucket();
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+        }),
       );
     },
 

@@ -18,6 +18,7 @@ import {
   formatWindow,
 } from "@/lib/format";
 import { generateInvoiceNumber, type FulfillmentMethod, type PaymentStatus } from "@/lib/orders";
+import { productCoverUrl } from "@/lib/product-images";
 import { db } from "@/services";
 
 import {
@@ -121,7 +122,7 @@ export async function loadCheckout() {
         variant: product.display?.variant || product.tagline,
         unit: product.unit,
         price: price ?? product.price,
-        image: product.imageUrl,
+        image: productCoverUrl(product.images),
         remaining:
           capacity === null ? null : Math.max(0, capacity - (ordered.get(product.id) ?? 0)),
       })),

@@ -33,6 +33,7 @@ import {
   toTimeValue,
   useMutationRunner,
 } from "./fields";
+import { ProductImagesField } from "./product-images-field";
 
 type LoadedOverview = NonNullable<BatchOverview["current"]>;
 type BatchRow = LoadedOverview["batch"];
@@ -514,6 +515,7 @@ function AddProductForm({
   const navigate = useNavigate();
   const run = useMutationRunner();
   const [pending, setPending] = useState(false);
+  const [uploading, setUploading] = useState(0);
   const [choice, setChoice] = useState(candidates[0]?.id ?? NEW_PRODUCT);
   const [form, setForm] = useState({
     name: "",
@@ -521,6 +523,7 @@ function AddProductForm({
     unit: "porsi" as (typeof productUnits)[number],
     price: "",
     capacity: "",
+    images: [] as string[],
   });
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -537,6 +540,7 @@ function AddProductForm({
             category: form.category,
             unit: form.unit,
             price: parseOptionalInt(form.price) ?? 0,
+            images: form.images,
           }
         : undefined,
       capacity: parseOptionalInt(form.capacity),
@@ -599,6 +603,17 @@ function AddProductForm({
               onChange={(value) => update("unit", value)}
             />
           </Field>
+          <div className="sm:col-span-2">
+            <ProductImagesField
+              name={form.name}
+              images={form.images}
+              onChange={(change) =>
+                setForm((current) => ({ ...current, images: change(current.images) }))
+              }
+              uploading={uploading}
+              setUploading={setUploading}
+            />
+          </div>
         </div>
       )}
       <Field label="Kapasitas batch" hint="Kosongkan bila tidak dibatasi.">
@@ -610,8 +625,12 @@ function AddProductForm({
         />
       </Field>
       <div className="flex justify-end">
-        <button type="submit" disabled={pending} className={primaryButtonClassName}>
-          Tambahkan
+        <button
+          type="submit"
+          disabled={pending || uploading > 0}
+          className={primaryButtonClassName}
+        >
+          {uploading > 0 ? "Mengunggah foto…" : "Tambahkan"}
         </button>
       </div>
     </form>

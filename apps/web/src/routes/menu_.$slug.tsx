@@ -2,6 +2,8 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { ReactLenis } from "lenis/react";
 import {
   ChefHat,
+  ChevronLeft,
+  ChevronRight,
   CupSoda,
   Heart,
   MapPin,
@@ -10,7 +12,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import ProductNotFound from "@/components/storefront/product-not-found";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
@@ -103,7 +105,7 @@ function ProductHero({ product }: { product: ProductDetail }) {
     price,
     portionLabel,
     story,
-    image,
+    images,
     highlights,
     available,
     availability,
@@ -112,17 +114,7 @@ function ProductHero({ product }: { product: ProductDetail }) {
 
   return (
     <section className="mx-auto flex max-w-[1280px] flex-col gap-8 px-5 pb-10 lg:flex-row lg:gap-[62px] lg:px-16 lg:pt-2.5 lg:pb-[54px]">
-      <figure className="flex flex-col gap-[13px] lg:w-[518px] lg:shrink-0">
-        <img
-          src={image.src}
-          alt={image.alt}
-          className="aspect-square w-full rounded-[20px] object-cover lg:aspect-auto lg:h-[506px]"
-        />
-        <figcaption className="flex items-center justify-between font-data text-[10px] text-plum">
-          <span className="font-bold tracking-[1px] uppercase">{name} · Foto produk</span>
-          <span className="font-semibold">01 / 01</span>
-        </figcaption>
-      </figure>
+      <ProductCarousel name={name} images={images} />
 
       <div className="flex flex-1 flex-col gap-[9px]">
         <p className="flex items-center gap-2 font-data text-[11px] font-bold tracking-[0.7px] whitespace-pre text-ube-pop">
@@ -171,6 +163,100 @@ function ProductHero({ product }: { product: ProductDetail }) {
         </p>
       </div>
     </section>
+  );
+}
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+/** Swipeable photo carousel (scroll-snap) with arrows and thumbnails. */
+function ProductCarousel({ name, images }: { name: string; images: ProductDetail["images"] }) {
+  const trackRef = useRef<HTMLUListElement>(null);
+  const [active, setActive] = useState(0);
+  const multiple = images.length > 1;
+
+  const goTo = (index: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const target = (index + images.length) % images.length;
+    track.scrollTo({ left: target * track.clientWidth, behavior: "smooth" });
+  };
+
+  return (
+    <figure
+      aria-roledescription={multiple ? "carousel" : undefined}
+      aria-label={multiple ? `Foto ${name}` : undefined}
+      className="flex flex-col gap-[13px] lg:w-[518px] lg:shrink-0"
+    >
+      <div className="relative">
+        <ul
+          ref={trackRef}
+          onScroll={(event) => {
+            const track = event.currentTarget;
+            setActive(Math.round(track.scrollLeft / track.clientWidth));
+          }}
+          className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain rounded-[20px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {images.map((image, index) => (
+            <li
+              key={image.src}
+              aria-roledescription={multiple ? "slide" : undefined}
+              aria-label={multiple ? `${pad(index + 1)} / ${pad(images.length)}` : undefined}
+              className="w-full shrink-0 snap-center"
+            >
+              <img
+                src={image.src}
+                alt={image.alt}
+                loading={index === 0 ? "eager" : "lazy"}
+                draggable={false}
+                className="aspect-square w-full object-cover lg:aspect-auto lg:h-[506px]"
+              />
+            </li>
+          ))}
+        </ul>
+        {multiple && (
+          <>
+            <CarouselArrow side="left" onClick={() => goTo(active - 1)} />
+            <CarouselArrow side="right" onClick={() => goTo(active + 1)} />
+          </>
+        )}
+      </div>
+      {multiple && (
+        <div className="flex gap-2 overflow-x-auto pb-0.5">
+          {images.map((image, index) => (
+            <button
+              key={image.src}
+              type="button"
+              aria-label={`Lihat foto ${index + 1}`}
+              aria-current={index === active}
+              onClick={() => goTo(index)}
+              className={`size-[58px] shrink-0 overflow-hidden rounded-[10px] border-2 transition-opacity ${index === active ? "border-deep-ube" : "border-transparent opacity-60 hover:opacity-100"}`}
+            >
+              <img src={image.src} alt="" loading="lazy" className="size-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+      <figcaption className="flex items-center justify-between font-data text-[10px] text-plum">
+        <span className="font-bold tracking-[1px] uppercase">{name} · Foto produk</span>
+        <span aria-live="polite" className="font-semibold">
+          {pad(active + 1)} / {pad(images.length)}
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
+function CarouselArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      aria-label={side === "left" ? "Foto sebelumnya" : "Foto berikutnya"}
+      onClick={onClick}
+      className={`absolute top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-deep-ube shadow-sm transition-colors hover:bg-vanilla ${side === "left" ? "left-3" : "right-3"}`}
+    >
+      <Icon aria-hidden className="size-5" />
+    </button>
   );
 }
 

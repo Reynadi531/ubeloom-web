@@ -92,9 +92,11 @@ export const product = pgTable("product", {
   description: text("description").notNull().default(""),
   serving: text("serving").notNull().default(""),
   allergen: text("allergen").notNull().default(""),
-  imageUrl: text("image_url"),
-  /** Optional wide crop for desktop layouts. */
-  imageWideUrl: text("image_wide_url"),
+  /**
+   * Object storage keys of the product photos (served through /media), in display
+   * order; the first is the cover used on catalog cards.
+   */
+  images: jsonb("images").$type<string[]>().notNull().default([]),
   display: jsonb("display").$type<ProductDisplay>(),
   published: boolean("published").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),

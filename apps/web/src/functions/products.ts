@@ -14,6 +14,15 @@ import { z } from "zod";
 import type { Product } from "@/components/storefront/product-card";
 import { getCurrentBatch, getPublicBatch } from "@/lib/batches.server";
 import { formatDateTime, formatDayMonth, formatRupiah } from "@/lib/format";
+import {
+  MAX_PRODUCT_IMAGE_BYTES,
+  MAX_PRODUCT_IMAGES,
+  PLACEHOLDER_IMAGE,
+  productCoverUrl,
+  productImageKeyPattern,
+  productImageUrl,
+} from "@/lib/product-images";
+import { deleteProductImages, storeProductImage } from "@/lib/product-images.server";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db } from "@/services";
 
@@ -39,8 +48,7 @@ export const productIcons = [
 export const productCategories = ["camilan", "minuman"] as const;
 export const productUnits = ["porsi", "kotak", "cup"] as const;
 
-/** Shown when a product has no photo yet. */
-export const PLACEHOLDER_IMAGE = "/images/ubeloom-logo.webp";
+export { PLACEHOLDER_IMAGE };
 
 type ProductRow = typeof product.$inferSelect;
 type BatchRow = typeof batch.$inferSelect;
@@ -71,7 +79,8 @@ export interface ProductDetail {
   price: number;
   portionLabel: string;
   story: string;
-  image: { src: string; alt: string };
+  /** Photos in display order; the placeholder when the product has none. */
+  images: { src: string; alt: string }[];
   highlights: ProductDisplay["highlights"];
   details: { title: string; facts: ProductDisplay["facts"] };
   available: boolean;
@@ -148,7 +157,7 @@ export const getStorefront = createServerFn({ method: "GET" }).handler(async () 
     batch: current ? await toStorefrontBatch(current) : null,
     products: products.map(({ row, price, available, availability }): Product => {
       const display = row.display ?? emptyDisplay;
-      const image = row.imageUrl ?? PLACEHOLDER_IMAGE;
+      const image = productCoverUrl(row.images);
       const care = [row.allergen && `Alergen: ${row.allergen.toLowerCase()}`, row.serving]
         .filter(Boolean)
         .join(" · ");
@@ -157,7 +166,7 @@ export const getStorefront = createServerFn({ method: "GET" }).handler(async () 
         slug: row.slug,
         name: row.name,
         price: formatRupiah(price),
-        image: { mobile: image, desktop: row.imageWideUrl ?? image },
+        image: { mobile: image, desktop: image },
         variant: { mobile: display.variant, desktop: display.variant },
         description: { mobile: description, desktop: description },
         care: { mobile: care, desktop: care },
@@ -202,7 +211,12 @@ export const getProduct = createServerFn({ method: "GET" })
       price,
       portionLabel: `/ ${row.unit}`,
       story: row.description || display.story,
-      image: { src: row.imageUrl ?? PLACEHOLDER_IMAGE, alt: row.name },
+      images: (row.images.length > 0 ? row.images.map(productImageUrl) : [PLACEHOLDER_IMAGE]).map(
+        (src, index, all) => ({
+          src,
+          alt: all.length > 1 ? `${row.name} · foto ${index + 1}` : row.name,
+        }),
+      ),
       highlights: display.highlights,
       details: { title: display.detailsTitle, facts: display.facts },
       available,
@@ -246,8 +260,7 @@ export const getProductEditor = createServerFn({ method: "GET" })
         description: row.description,
         serving: row.serving,
         allergen: row.allergen,
-        imageUrl: row.imageUrl ?? "",
-        imageWideUrl: row.imageWideUrl ?? "",
+        images: row.images,
         published: row.published,
         display: row.display ?? emptyDisplay,
       },
@@ -270,9 +283,12 @@ export type ProductEditorData = Awaited<ReturnType<typeof getProductEditor>>;
 
 const iconSchema = z.enum(productIcons);
 const trimmed = z.string().trim();
-const optionalUrl = trimmed.max(2048).refine((value) => !value || /^(https?:\/\/|\/)/.test(value), {
-  message: "Gunakan URL http(s) atau path yang diawali /",
-});
+
+/** Ordered photo keys from `uploadProductImage`. */
+export const productImagesSchema = z
+  .array(z.string().regex(productImageKeyPattern, "Foto produk tidak valid"))
+  .max(MAX_PRODUCT_IMAGES, `Maksimal ${MAX_PRODUCT_IMAGES} foto per produk`)
+  .refine((keys) => new Set(keys).size === keys.length, "Foto produk ganda");
 
 const displaySchema = z.object({
   collection: trimmed.max(80),
@@ -299,8 +315,7 @@ export const saveProductSchema = z.object({
   description: trimmed.max(1000),
   serving: trimmed.max(120),
   allergen: trimmed.max(120),
-  imageUrl: optionalUrl,
-  imageWideUrl: optionalUrl,
+  images: productImagesSchema,
   published: z.boolean(),
   display: displaySchema,
   /** Omitted when there is no batch to sell in. */
@@ -323,24 +338,26 @@ export const saveProduct = createServerFn({ method: "POST" })
   .middleware([requireAuthMiddleware])
   .validator(saveProductSchema)
   .handler(async ({ data }) => {
-    const { id, availability, imageUrl, imageWideUrl, ...fields } = data;
+    const { id, availability, ...fields } = data;
 
-    await db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(product)
-        .set({ ...fields, imageUrl: imageUrl || null, imageWideUrl: imageWideUrl || null })
+    const removedImages = await db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select({ images: product.images })
+        .from(product)
         .where(eq(product.id, id))
-        .returning({ id: product.id });
-      if (!updated) throw notFound();
+        .for("update");
+      if (!previous) throw notFound();
+      await tx.update(product).set(fields).where(eq(product.id, id));
+      const removed = previous.images.filter((key) => !fields.images.includes(key));
 
-      if (!availability) return;
+      if (!availability) return removed;
       const key = and(
         eq(batchProduct.batchId, availability.batchId),
         eq(batchProduct.productId, id),
       );
       if (!availability.inBatch) {
         await tx.delete(batchProduct).where(key);
-        return;
+        return removed;
       }
       const values = {
         price: availability.price,
@@ -354,10 +371,35 @@ export const saveProduct = createServerFn({ method: "POST" })
           target: [batchProduct.batchId, batchProduct.productId],
           set: values,
         });
+      return removed;
     });
+    // Only after commit: a rolled-back save must keep its photos.
+    await deleteProductImages(removedImages);
 
     return { ok: true as const };
   });
+
+/**
+ * Uploads one product photo (multipart) to object storage and returns its key.
+ * The photo only shows on the storefront once a product save references it.
+ */
+export const uploadProductImage = createServerFn({ method: "POST" })
+  .middleware([requireAuthMiddleware])
+  .validator((input: FormData) => {
+    if (!(input instanceof FormData)) throw new Error("Format unggahan tidak valid.");
+    return z
+      .object({
+        file: z
+          .instanceof(File, { message: "Pilih file foto." })
+          .refine((file) => file.size > 0, "Pilih file foto.")
+          .refine(
+            (file) => file.size <= MAX_PRODUCT_IMAGE_BYTES,
+            `Foto maksimal ${MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.`,
+          ),
+      })
+      .parse({ file: input.get("file") });
+  })
+  .handler(async ({ data }) => ({ key: await storeProductImage(data.file) }));
 
 /**
  * Swaps a product with its neighbour in storefront order (landing + menu).

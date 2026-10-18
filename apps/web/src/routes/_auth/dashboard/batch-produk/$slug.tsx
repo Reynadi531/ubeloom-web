@@ -1,11 +1,10 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, CircleAlert, ExternalLink, Info, Save, Upload } from "lucide-react";
+import { ChevronDown, CircleAlert, ExternalLink, Info, Save } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { AdminPage } from "@/components/admin/admin-page";
 import {
-  PLACEHOLDER_IMAGE,
   type ProductDisplay,
   type ProductEditorData,
   type ProductIcon,
@@ -15,6 +14,7 @@ import {
   saveProductSchema,
 } from "@/functions/products";
 import { formatRupiah } from "@/lib/format";
+import { productCoverUrl } from "@/lib/product-images";
 
 import { categoryOptions, unitOptions } from "./-components/batch-dialogs";
 import {
@@ -27,6 +27,7 @@ import {
   secondaryButtonClassName,
   useMutationRunner,
 } from "./-components/fields";
+import { ProductImagesField } from "./-components/product-images-field";
 
 const tabs = [
   { id: "info", label: "Informasi produk" },
@@ -89,12 +90,15 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
   const [availability, setAvailability] = useState(() => toAvailability(data.batch));
   const [activeTab, setActiveTab] = useState<TabId>("info");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(0);
   const tabsId = useId();
 
   const update = <K extends keyof EditorProduct>(key: K, value: EditorProduct[K]) =>
     setContent((current) => ({ ...current, [key]: value }));
   const updateDisplay = <K extends keyof ProductDisplay>(key: K, value: ProductDisplay[K]) =>
     setContent((current) => ({ ...current, display: { ...current.display, [key]: value } }));
+  const updateImages = (change: (images: string[]) => string[]) =>
+    setContent((current) => ({ ...current, images: change(current.images) }));
 
   const save = async () => {
     // The schema strips read-only fields (slug, code).
@@ -116,7 +120,7 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
     setSaving(false);
   };
 
-  const image = content.imageUrl || PLACEHOLDER_IMAGE;
+  const image = productCoverUrl(content.images);
   const batchPrice = parseOptionalInt(availability.price);
   const previewPrice =
     availability.inBatch && batchPrice != null ? batchPrice : (content.price ?? 0);
@@ -128,7 +132,7 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
   const sidebar = (
     <div className="flex min-w-0 flex-col gap-[15px]">
       <LivePreview
-        image={content.imageWideUrl || image}
+        image={image}
         name={content.name}
         collection={
           content.display.collection ||
@@ -181,11 +185,11 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
           <button
             type="button"
             onClick={save}
-            disabled={saving}
+            disabled={saving || uploading > 0}
             className="flex items-center gap-2 rounded-[9px] bg-deep-ube px-[18px] py-3 text-xs/[15px] font-bold text-white transition-colors hover:bg-ube-pop disabled:opacity-50"
           >
             <Save className="size-[15px]" />
-            {saving ? "Menyimpan…" : "Simpan perubahan"}
+            {saving ? "Menyimpan…" : uploading > 0 ? "Mengunggah foto…" : "Simpan perubahan"}
           </button>
         </div>
       </div>
@@ -235,7 +239,20 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
       >
         <div className="grid items-start gap-[22px] xl:grid-cols-[596fr_384fr]">
           {activeTab === "info" && (
-            <InfoTab content={content} image={image} priceHint={priceHint} update={update} />
+            <InfoTab
+              content={content}
+              priceHint={priceHint}
+              update={update}
+              images={
+                <ProductImagesField
+                  name={content.name}
+                  images={content.images}
+                  onChange={updateImages}
+                  uploading={uploading}
+                  setUploading={setUploading}
+                />
+              }
+            />
           )}
           {activeTab === "display" && (
             <DisplayTab display={content.display} updateDisplay={updateDisplay} />
@@ -273,17 +290,16 @@ function SectionTitle({ title, description }: { title: string; description: stri
 
 function InfoTab({
   content,
-  image,
+  images,
   priceHint,
   update,
 }: {
   content: EditorProduct;
-  image: string;
+  /** Photo manager; its state lives in the editor so uploads survive tab switches. */
+  images: ReactNode;
   priceHint: string;
   update: <K extends keyof EditorProduct>(key: K, value: EditorProduct[K]) => void;
 }) {
-  const [editingImage, setEditingImage] = useState(false);
-
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <SectionTitle
@@ -291,48 +307,7 @@ function InfoTab({
         description="Perubahan di sini akan memperbarui halaman produk pelanggan."
       />
 
-      <div className="flex flex-col gap-3 rounded-xl border border-ube-line p-3">
-        <div className="flex items-center gap-[15px]">
-          <img
-            src={image}
-            alt={content.name}
-            width={98}
-            height={98}
-            className="size-[98px] shrink-0 rounded-lg object-cover"
-          />
-          <div className="flex min-w-0 flex-col gap-[7px]">
-            <p className="text-[13px] font-bold text-ink">Foto utama produk</p>
-            <p className="text-[11px] text-plum">Tampil di katalog dan halaman detail.</p>
-            <button
-              type="button"
-              aria-expanded={editingImage}
-              onClick={() => setEditingImage((value) => !value)}
-              className={`${secondaryButtonClassName} w-fit`}
-            >
-              <Upload className="size-3.5" />
-              Ganti foto
-            </button>
-          </div>
-        </div>
-        {editingImage && (
-          <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
-            <Field label="URL foto utama" hint="Path seperti /images/produk.webp atau URL https.">
-              <input
-                value={content.imageUrl}
-                onChange={(event) => update("imageUrl", event.target.value)}
-                className={inputClassName}
-              />
-            </Field>
-            <Field label="URL foto lebar (desktop)" hint="Opsional; kosongkan untuk foto utama.">
-              <input
-                value={content.imageWideUrl}
-                onChange={(event) => update("imageWideUrl", event.target.value)}
-                className={inputClassName}
-              />
-            </Field>
-          </div>
-        )}
-      </div>
+      {images}
 
       <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
         <Field label="Nama produk">

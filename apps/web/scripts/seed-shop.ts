@@ -1,12 +1,15 @@
 /**
  * Seeds the shop catalog: products, batches, pickup slots and delivery zones.
  * Orders, payments, invoices and draws are never seeded; they only come from
- * real checkout and admin activity.
+ * real checkout and admin activity. Product photos are uploaded from public/images
+ * to object storage, like photos added from the dashboard.
  *
  *   bun run db:seed:shop           # skips when batch "Oktober 2026" exists
  *   bun run db:seed:shop --reset   # wipes all shop tables (not auth) and reseeds
  */
 import "varlock/auto-load";
+
+import { readFile } from "node:fs/promises";
 
 import { createDb } from "@web-kwu/db";
 import {
@@ -25,6 +28,7 @@ import {
   product,
   type ProductDisplay,
 } from "@web-kwu/db/schema/shop";
+import { createStorage } from "@web-kwu/storage";
 import { eq } from "drizzle-orm";
 
 import { ENV } from "../src/env";
@@ -122,8 +126,7 @@ const productRows = [
       "Lumpia ubi hangat dengan kulit keemasan yang garing dan isian ubi manis nan lembut. Cocok untuk jeda sore, berbagi dengan teman, atau dinikmati sendiri.",
     serving: "Terbaik disantap hangat",
     allergen: "Konfirmasi sebelum rilis",
-    imageUrl: "/images/lumpia-ubi-goreng.webp",
-    imageWideUrl: null,
+    images: [] as string[],
     display: lumpiaDisplay,
     published: true,
     sortOrder: 1,
@@ -143,8 +146,7 @@ const productRows = [
       "Belimbing, chia seed, air soda dan es dalam satu cup. Teman segar untuk lumpia hangat di siang hari.",
     serving: "Sajikan dingin, konsumsi hari yang sama",
     allergen: "Konfirmasi sebelum rilis",
-    imageUrl: "/images/sparkling-starfruit.webp",
-    imageWideUrl: "/images/sparkling-starfruit-wide.webp",
+    images: [] as string[],
     display: sparklingDisplay,
     published: true,
     sortOrder: 2,
@@ -157,6 +159,12 @@ type ProductKey = "lumpia" | "sparkling";
 const productByKey: Record<ProductKey, (typeof productRows)[number]> = {
   lumpia: productRows[0],
   sparkling: productRows[1],
+};
+
+/** Files in public/images uploaded as each product's photos, cover first. */
+const productPhotos: Record<ProductKey, string[]> = {
+  lumpia: ["lumpia-ubi-goreng.webp", "lumpia-cone.webp"],
+  sparkling: ["sparkling-starfruit.webp", "sparkling-starfruit-wide.webp"],
 };
 
 // ---------------------------------------------------------------------------
@@ -255,6 +263,7 @@ const september = makeBatch({
 // Run
 
 const db = createDb(ENV);
+const storage = createStorage(ENV);
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function wipeShopTables(tx: Tx) {
@@ -275,6 +284,19 @@ async function wipeShopTables(tx: Tx) {
     product,
   ]) {
     await tx.delete(table);
+  }
+}
+
+/** Uploads the seed photos under fresh `products/<uuid>.webp` keys (see /media). */
+async function uploadProductPhotos() {
+  for (const [key, files] of Object.entries(productPhotos) as [ProductKey, string[]][]) {
+    productByKey[key].images = [];
+    for (const file of files) {
+      const objectKey = `products/${crypto.randomUUID()}.webp`;
+      const body = await readFile(new URL(`../public/images/${file}`, import.meta.url));
+      await storage.putObject(objectKey, body, "image/webp");
+      productByKey[key].images.push(objectKey);
+    }
   }
 }
 
@@ -306,10 +328,15 @@ try {
   if (existing && !reset) {
     console.log(`skip (batch "${ACTIVE_BATCH_NAME}" already exists; use --reset to reseed)`);
   } else {
+    const oldPhotos = reset
+      ? (await db.select({ images: product.images }).from(product)).flatMap((row) => row.images)
+      : [];
+    await uploadProductPhotos();
     await db.transaction(async (tx) => {
       if (reset) await wipeShopTables(tx);
       await seed(tx);
     });
+    await storage.deleteObjects(oldPhotos);
     console.log(
       `${reset ? "reset and seeded" : "seeded"} shop catalog: ${productRows.length} products, 2 batches`,
     );

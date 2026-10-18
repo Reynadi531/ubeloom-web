@@ -5,7 +5,7 @@ import { type ReactNode, useState } from "react";
 import { AdminPage, BatchStatusPill, PageHeading } from "@/components/admin/admin-page";
 import { CompactMetric } from "@/components/admin/metric-card";
 import { type BatchOverview, type BatchStatus, getBatchOverview } from "@/functions/batches";
-import { moveProduct, PLACEHOLDER_IMAGE } from "@/functions/products";
+import { moveProduct } from "@/functions/products";
 import {
   formatDayMonth,
   formatRupiah,
@@ -330,7 +330,7 @@ function ProductAdminCard({
   first: boolean;
   last: boolean;
 }) {
-  const { id, slug, name, summary, unit, imageUrl, price } = product;
+  const { id, slug, name, summary, unit, image, price } = product;
   const run = useMutationRunner();
   const [moving, setMoving] = useState(false);
 
@@ -343,7 +343,7 @@ function ProductAdminCard({
   return (
     <article className={`${cardClassName} flex flex-col overflow-hidden sm:h-[190px] sm:flex-row`}>
       <img
-        src={imageUrl ?? PLACEHOLDER_IMAGE}
+        src={image}
         alt={name}
         width={160}
         height={190}

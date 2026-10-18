@@ -20,6 +20,7 @@ import {
   formatWeekday,
   toDateInputValue,
 } from "@/lib/format";
+import { productImageUrl } from "@/lib/product-images";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db } from "@/services";
 
@@ -110,7 +111,7 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
         .select({
           slug: product.slug,
           name: product.name,
-          imageUrl: product.imageUrl,
+          images: product.images,
           price: sql<number>`coalesce(${batchProduct.price}, ${product.price})`.mapWith(Number),
         })
         .from(product)
@@ -200,10 +201,10 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
         range: formatDayRange(days[0]!, days.at(-1)!),
         points: orderGrowth,
       },
-      products: products.map(({ slug, name, imageUrl, price }) => ({
+      products: products.map(({ slug, name, images, price }) => ({
         slug,
         name,
-        image: imageUrl,
+        image: images[0] ? productImageUrl(images[0]) : null,
         price: formatRupiah(price),
       })),
       fulfillment: {

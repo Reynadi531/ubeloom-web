@@ -11,11 +11,12 @@ import { and, count, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getCurrentBatch } from "@/lib/batches.server";
+import { productCoverUrl } from "@/lib/product-images";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db } from "@/services";
 
 import { createDraftProduct, getSoldQuantities } from "./catalog.server";
-import { productCategories, productUnits } from "./products";
+import { productCategories, productImagesSchema, productUnits } from "./products";
 
 export const batchStatuses = ["draft", "open", "closed", "archived"] as const;
 export type BatchStatus = (typeof batchStatuses)[number];
@@ -43,7 +44,7 @@ export const getBatchOverview = createServerFn({ method: "GET" })
         name: row.name,
         summary: row.display?.variant || row.tagline,
         unit: row.unit,
-        imageUrl: row.imageUrl,
+        image: productCoverUrl(row.images),
         published: row.published,
         inBatch: !!entry,
         available: entry?.available ?? false,
@@ -236,6 +237,7 @@ export const addBatchProductSchema = z.object({
       category: z.enum(productCategories),
       unit: z.enum(productUnits),
       price: z.number().int().min(0).max(10_000_000),
+      images: productImagesSchema,
     })
     .optional(),
   /** Null means unlimited. */

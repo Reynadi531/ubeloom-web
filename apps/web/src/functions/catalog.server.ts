@@ -53,6 +53,7 @@ export async function createDraftProduct(input: {
   category: (typeof product.$inferInsert)["category"];
   unit: (typeof product.$inferInsert)["unit"];
   price: number;
+  images: string[];
 }) {
   const existing = await db
     .select({ slug: product.slug, code: product.code, sortOrder: product.sortOrder })

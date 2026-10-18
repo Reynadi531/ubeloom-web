@@ -18,20 +18,65 @@ import ProductNotFound from "@/components/storefront/product-not-found";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getProduct, type ProductDetail, type ProductIcon } from "@/functions/products";
+import { PLACEHOLDER_IMAGE } from "@/lib/product-images";
+import { SITE_NAME, absoluteUrl, jsonLd, seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/menu_/$slug")({
   loader: ({ params }) => getProduct({ data: { slug: params.slug } }),
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.name} · ubeloom` },
-          { name: "description", content: `${loaderData.subtitle} ${loaderData.story}` },
-        ]
-      : [],
-  }),
+  head: ({ loaderData }) => (loaderData ? productHead(loaderData) : {}),
   component: ProductDetailComponent,
   notFoundComponent: ProductNotFound,
 });
+
+/** Search snippets cut off around 160 characters; trim on a word boundary. */
+function summarize(text: string, max = 160) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.lastIndexOf(" ", max - 1);
+  return `${clean.slice(0, cut > 0 ? cut : max - 1)}…`;
+}
+
+function productHead(product: ProductDetail) {
+  const path = `/menu/${product.slug}`;
+  const photos = product.images.filter(({ src }) => src !== PLACEHOLDER_IMAGE);
+  const description = summarize(`${product.subtitle} ${product.story}`);
+  const { meta, links } = seo({
+    title: `${product.name} · ${SITE_NAME}`,
+    description,
+    path,
+    image: photos[0]?.src,
+    imageAlt: photos[0]?.alt,
+    type: "product",
+  });
+
+  return {
+    meta: [
+      ...meta,
+      { property: "product:price:amount", content: String(product.price) },
+      { property: "product:price:currency", content: "IDR" },
+    ],
+    links,
+    scripts: [
+      jsonLd({
+        "@type": "Product",
+        name: product.name,
+        description,
+        url: absoluteUrl(path),
+        ...(photos.length > 0 && { image: photos.map(({ src }) => absoluteUrl(src)) }),
+        brand: { "@type": "Brand", name: SITE_NAME },
+        offers: {
+          "@type": "Offer",
+          url: absoluteUrl(path),
+          price: product.price,
+          priceCurrency: "IDR",
+          availability: product.available
+            ? "https://schema.org/PreOrder"
+            : "https://schema.org/OutOfStock",
+        },
+      }),
+    ],
+  };
+}
 
 const icons: Record<ProductIcon, LucideIcon> = {
   sparkles: Sparkles,

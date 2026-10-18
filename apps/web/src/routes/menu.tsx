@@ -9,18 +9,16 @@ import StorefrontFooter from "@/components/storefront/storefront-footer";
 import type { Product } from "@/components/storefront/product-card";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefront } from "@/functions/products";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/menu")({
-  head: () => ({
-    meta: [
-      { title: "Menu · ubeloom" },
-      {
-        name: "description",
-        content:
-          "Menu lumpia ubi dan minuman segar dari batch preorder ubeloom. Pilih pickup atau delivery saat checkout.",
-      },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "Menu · ubeloom",
+      description:
+        "Menu lumpia ubi dan minuman segar dari batch preorder ubeloom. Pilih pickup atau delivery saat checkout.",
+      path: "/menu",
+    }),
   loader: () => getStorefront(),
   component: MenuComponent,
 });

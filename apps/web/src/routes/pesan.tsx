@@ -18,6 +18,7 @@ import {
 } from "@/functions/checkout";
 import { formatRupiah } from "@/lib/format";
 import { type FulfillmentMethod, windowServesArea } from "@/lib/orders";
+import { seo } from "@/lib/seo";
 import { cn } from "@web-kwu/ui/lib/utils";
 
 export const Route = createFileRoute("/pesan")({
@@ -26,15 +27,12 @@ export const Route = createFileRoute("/pesan")({
     produk: z.string().optional().catch(undefined),
     jumlah: z.number().int().min(1).max(99).optional().catch(undefined),
   }),
-  head: () => ({
-    meta: [
-      { title: "Pesan · ubeloom" },
-      {
-        name: "description",
-        content: "Pilih produk, pengiriman atau ambil sendiri, lalu buat invoice.",
-      },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "Pesan · ubeloom",
+      description: "Pilih produk, pengiriman atau ambil sendiri, lalu buat invoice.",
+      path: "/pesan",
+    }),
   loader: () => getCheckout(),
   component: CheckoutComponent,
 });

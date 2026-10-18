@@ -1,0 +1,10 @@
+{
+  "name": "ubeloom",
+  "short_name": "ubeloom",
+  "description": "Preorder lumpia ubi hangat dan minuman segar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff9ed",
+  "theme_color": "#7c2961",
+  "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+}

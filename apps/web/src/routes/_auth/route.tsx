@@ -2,6 +2,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import AdminSidebar from "@/components/admin/admin-sidebar";
 import { requireUser } from "@/functions/get-user";
+import { noindex } from "@/lib/seo";
 import { requireAuthMiddleware } from "@/middleware/auth";
 
 export const Route = createFileRoute("/_auth")({
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/_auth")({
     const session = await requireUser();
     return { session };
   },
+  head: () => ({ meta: [noindex] }),
   component: AuthLayout,
 });
 

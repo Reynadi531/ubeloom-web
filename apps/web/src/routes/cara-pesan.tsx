@@ -7,18 +7,16 @@ import PreorderInvitation from "@/components/storefront/preorder-invitation";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefront } from "@/functions/products";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/cara-pesan")({
-  head: () => ({
-    meta: [
-      { title: "Cara pesan · ubeloom" },
-      {
-        name: "description",
-        content:
-          "Alur preorder ubeloom tanpa akun: pilih menu, tentukan pickup atau delivery, terima invoice, bayar via QRIS, lalu tunggu verifikasi.",
-      },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "Cara pesan · ubeloom",
+      description:
+        "Alur preorder ubeloom tanpa akun: pilih menu, tentukan pickup atau delivery, terima invoice, bayar via QRIS, lalu tunggu verifikasi.",
+      path: "/cara-pesan",
+    }),
   loader: () => getStorefront(),
   component: CaraPesanComponent,
 });

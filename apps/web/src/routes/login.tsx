@@ -2,10 +2,11 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 
 import SignInForm from "@/components/sign-in-form";
+import { noindex } from "@/lib/seo";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
-    meta: [{ title: "Masuk · ubeloom" }],
+    meta: [{ title: "Masuk · ubeloom" }, noindex],
   }),
   component: LoginComponent,
 });

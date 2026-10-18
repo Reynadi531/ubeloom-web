@@ -7,19 +7,33 @@ import ProductCard, { type Product } from "@/components/storefront/product-card"
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefront } from "@/functions/products";
+import { DEFAULT_DESCRIPTION, LOGO_IMAGE, SITE_NAME, absoluteUrl, jsonLd, seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "ubeloom · Preorder lumpia ubi & minuman segar" },
-      {
-        name: "description",
-        content:
-          "Lumpia ubi hangat dan minuman segar. Preorder sekarang, lalu pilih pickup atau delivery saat checkout.",
-      },
-    ],
-    links: [{ rel: "preload", as: "image", href: "/images/hero-lumpia.webp" }],
-  }),
+  head: () => {
+    const { meta, links } = seo({
+      title: "ubeloom · Preorder lumpia ubi & minuman segar",
+      description: DEFAULT_DESCRIPTION,
+      path: "/",
+    });
+    return {
+      meta,
+      links: [...links, { rel: "preload", as: "image", href: "/images/hero-lumpia.webp" }],
+      scripts: [
+        jsonLd({
+          "@graph": [
+            { "@type": "WebSite", name: SITE_NAME, url: absoluteUrl("/"), inLanguage: "id-ID" },
+            {
+              "@type": "Organization",
+              name: SITE_NAME,
+              url: absoluteUrl("/"),
+              logo: absoluteUrl(LOGO_IMAGE),
+            },
+          ],
+        }),
+      ],
+    };
+  },
   loader: () => getStorefront(),
   component: HomeComponent,
 });

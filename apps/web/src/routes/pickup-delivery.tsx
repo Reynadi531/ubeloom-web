@@ -6,17 +6,15 @@ import { batchCopy } from "@/components/storefront/batch-copy";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefrontBatch } from "@/functions/products";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/pickup-delivery")({
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: "Pickup & delivery · ubeloom" },
-      {
-        name: "description",
-        content: `Ambil pesanan ubeloom di ${batchCopy(loaderData ?? null).pickupLocation} atau kirim ke alamatmu. Jadwal, alamat, dan ongkir tampil sebelum invoice dibuat.`,
-      },
-    ],
-  }),
+  head: ({ loaderData }) =>
+    seo({
+      title: "Pickup & delivery · ubeloom",
+      description: `Ambil pesanan ubeloom di ${batchCopy(loaderData ?? null).pickupLocation} atau kirim ke alamatmu. Jadwal, alamat, dan ongkir tampil sebelum invoice dibuat.`,
+      path: "/pickup-delivery",
+    }),
   loader: () => getStorefrontBatch(),
   component: PickupDeliveryComponent,
 });

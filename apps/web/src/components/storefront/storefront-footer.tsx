@@ -46,8 +46,8 @@ export default function StorefrontFooter() {
             © 2025 ubeloom · Semua hak dilindungi
           </p>
           <p className="flex gap-3 font-wordmark text-[10px] font-semibold text-vanilla">
-            <span>Instagram ↗</span>
-            <span>WhatsApp ↗</span>
+            <a href="https://instagram.com/ubeloom_">Instagram ↗</a>
+            <a href="https://wa.me/6282251752468">WhatsApp ↗</a>
             <span>Hubungi kami</span>
           </p>
         </div>

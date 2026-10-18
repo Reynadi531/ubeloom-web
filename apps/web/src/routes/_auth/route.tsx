@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
 import AdminSidebar from "@/components/admin/admin-sidebar";
+import { AdminShellSkeleton } from "@/components/loader";
 import { requireUser } from "@/functions/get-user";
 import { noindex } from "@/lib/seo";
 import { requireAuthMiddleware } from "@/middleware/auth";
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/_auth")({
     return { session };
   },
   head: () => ({ meta: [noindex] }),
+  pendingComponent: AdminShellSkeleton,
   component: AuthLayout,
 });
 

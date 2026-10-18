@@ -8,7 +8,7 @@ import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
 
-import Loader from "./loader";
+import { FormSkeleton } from "./loader";
 
 export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () => void }) {
   const navigate = useNavigate({
@@ -52,7 +52,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
   });
 
   if (isPending) {
-    return <Loader />;
+    return <FormSkeleton />;
   }
 
   return (

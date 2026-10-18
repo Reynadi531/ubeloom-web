@@ -1,0 +1,619 @@
+import { useNavigate } from "@tanstack/react-router";
+import { type FormEvent, useState } from "react";
+import { toast } from "sonner";
+
+import {
+  addBatchProduct,
+  addBatchProductSchema,
+  type BatchOverview,
+  type BatchStatus,
+  deleteDeliveryZone,
+  deletePickupSlot,
+  saveBatch,
+  saveBatchSchema,
+  saveDeliveryZone,
+  saveDeliveryZoneSchema,
+  savePickupSlot,
+  savePickupSlotSchema,
+} from "@/functions/batches";
+import { productCategories, productUnits } from "@/functions/products";
+
+import {
+  AdminDialog,
+  Field,
+  OptionSelect,
+  firstIssue,
+  fromWib,
+  inputClassName,
+  parseOptionalInt,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  toDateTimeInputValue,
+  toDateValue,
+  toTimeValue,
+  useMutationRunner,
+} from "./fields";
+
+type LoadedOverview = NonNullable<BatchOverview["current"]>;
+type BatchRow = LoadedOverview["batch"];
+type SlotRow = LoadedOverview["slots"][number];
+type ZoneRow = LoadedOverview["zones"][number];
+
+export const batchStatusOptions: { value: BatchStatus; label: string }[] = [
+  { value: "draft", label: "Draf" },
+  { value: "open", label: "Dibuka" },
+  { value: "closed", label: "Ditutup" },
+  { value: "archived", label: "Diarsipkan" },
+];
+
+const categoryLabels = { camilan: "Camilan", minuman: "Minuman" } as const;
+const unitLabels = { porsi: "Porsi", kotak: "Kotak", cup: "Cup" } as const;
+export const categoryOptions = productCategories.map((value) => ({
+  value,
+  label: categoryLabels[value],
+}));
+export const unitOptions = productUnits.map((value) => ({ value, label: unitLabels[value] }));
+
+const checkboxClassName = "size-4 accent-deep-ube";
+
+// ---------------------------------------------------------------------------
+// Batch settings
+// ---------------------------------------------------------------------------
+
+export function BatchSettingsDialog({
+  open,
+  onClose,
+  batch,
+}: {
+  open: boolean;
+  onClose: () => void;
+  batch: BatchRow | null;
+}) {
+  return (
+    <AdminDialog
+      open={open}
+      onClose={onClose}
+      title={batch ? "Pengaturan batch" : "Buat batch"}
+      description="Waktu dalam WIB. Membuka batch ini akan menutup batch lain yang masih dibuka."
+    >
+      <BatchSettingsForm batch={batch} onDone={onClose} />
+    </AdminDialog>
+  );
+}
+
+function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: () => void }) {
+  const run = useMutationRunner();
+  const [pending, setPending] = useState(false);
+  const now = new Date();
+  const [form, setForm] = useState({
+    name: batch?.name ?? "",
+    status: (batch?.status ?? "draft") as BatchStatus,
+    opensAt: toDateTimeInputValue(batch?.opensAt ?? now),
+    closesAt: toDateTimeInputValue(batch?.closesAt ?? new Date(now.getTime() + 6 * 864e5)),
+    paymentCutoffAt: toDateTimeInputValue(
+      batch?.paymentCutoffAt ?? new Date(now.getTime() + 7 * 864e5),
+    ),
+    pickupLocation: batch?.pickupLocation ?? "",
+  });
+  const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const parsed = saveBatchSchema.safeParse({
+      id: batch?.id,
+      ...form,
+      opensAt: fromWib(form.opensAt),
+      closesAt: fromWib(form.closesAt),
+      paymentCutoffAt: fromWib(form.paymentCutoffAt),
+    });
+    if (!parsed.success) return void toast.error(firstIssue(parsed.error));
+    setPending(true);
+    const ok = await run(() => saveBatch({ data: parsed.data }), "Pengaturan batch disimpan");
+    setPending(false);
+    if (ok) onDone();
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
+        <Field label="Nama batch" hint="Contoh: Oktober 2026">
+          <input
+            value={form.name}
+            onChange={(event) => update("name", event.target.value)}
+            className={inputClassName}
+            required
+          />
+        </Field>
+        <Field label="Status">
+          <OptionSelect
+            options={batchStatusOptions}
+            value={form.status}
+            onChange={(value) => update("status", value)}
+          />
+        </Field>
+        <Field label="Buka">
+          <input
+            type="datetime-local"
+            value={form.opensAt}
+            onChange={(event) => update("opensAt", event.target.value)}
+            className={inputClassName}
+            required
+          />
+        </Field>
+        <Field label="Tutup">
+          <input
+            type="datetime-local"
+            value={form.closesAt}
+            onChange={(event) => update("closesAt", event.target.value)}
+            className={inputClassName}
+            required
+          />
+        </Field>
+        <Field label="Cutoff pembayaran">
+          <input
+            type="datetime-local"
+            value={form.paymentCutoffAt}
+            onChange={(event) => update("paymentCutoffAt", event.target.value)}
+            className={inputClassName}
+            required
+          />
+        </Field>
+        <Field label="Lokasi pickup">
+          <input
+            value={form.pickupLocation}
+            onChange={(event) => update("pickupLocation", event.target.value)}
+            className={inputClassName}
+          />
+        </Field>
+      </div>
+      <div className="flex justify-end">
+        <button type="submit" disabled={pending} className={primaryButtonClassName}>
+          {batch ? "Simpan pengaturan" : "Buat batch"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pickup slots
+// ---------------------------------------------------------------------------
+
+export function PickupSlotsDialog({
+  open,
+  onClose,
+  batchId,
+  slots,
+}: {
+  open: boolean;
+  onClose: () => void;
+  batchId: string;
+  slots: SlotRow[];
+}) {
+  return (
+    <AdminDialog
+      open={open}
+      onClose={onClose}
+      title="Slot pickup & kapasitas"
+      description="Slot nonaktif tidak bisa dipilih pelanggan. Slot yang sudah dipakai pesanan tidak bisa dihapus."
+      className="w-[min(760px,calc(100vw-32px))]"
+    >
+      <ul className="flex flex-col gap-2.5">
+        {slots.map((slot) => (
+          <PickupSlotForm key={slot.id} batchId={batchId} slot={slot} />
+        ))}
+        <PickupSlotForm key={`new-${slots.length}`} batchId={batchId} />
+      </ul>
+    </AdminDialog>
+  );
+}
+
+function PickupSlotForm({ batchId, slot }: { batchId: string; slot?: SlotRow }) {
+  const run = useMutationRunner();
+  const [pending, setPending] = useState(false);
+  const base = slot?.startsAt ?? new Date();
+  const [form, setForm] = useState({
+    date: toDateValue(base),
+    start: slot ? toTimeValue(slot.startsAt) : "10:00",
+    end: slot ? toTimeValue(slot.endsAt) : "12:00",
+    capacity: String(slot?.capacity ?? 50),
+    active: slot?.active ?? true,
+  });
+  const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const parsed = savePickupSlotSchema.safeParse({
+      id: slot?.id,
+      batchId,
+      startsAt: fromWib(form.date, form.start),
+      endsAt: fromWib(form.date, form.end),
+      capacity: parseOptionalInt(form.capacity) ?? 0,
+      active: form.active,
+    });
+    if (!parsed.success) return void toast.error(firstIssue(parsed.error));
+    setPending(true);
+    await run(
+      () => savePickupSlot({ data: parsed.data }),
+      slot ? "Slot pickup disimpan" : "Slot pickup ditambahkan",
+    );
+    setPending(false);
+  };
+
+  const remove = async () => {
+    if (!slot) return;
+    setPending(true);
+    await run(() => deletePickupSlot({ data: { id: slot.id } }), "Slot pickup dihapus");
+    setPending(false);
+  };
+
+  return (
+    <li className="rounded-lg bg-vanilla px-3 py-[11px]">
+      <form onSubmit={submit} className="flex flex-wrap items-end gap-2.5">
+        <Field label="Tanggal">
+          <input
+            type="date"
+            value={form.date}
+            onChange={(event) => update("date", event.target.value)}
+            className={`${inputClassName} w-[140px]`}
+            required
+          />
+        </Field>
+        <Field label="Mulai">
+          <input
+            type="time"
+            value={form.start}
+            onChange={(event) => update("start", event.target.value)}
+            className={`${inputClassName} w-[92px]`}
+            required
+          />
+        </Field>
+        <Field label="Selesai">
+          <input
+            type="time"
+            value={form.end}
+            onChange={(event) => update("end", event.target.value)}
+            className={`${inputClassName} w-[92px]`}
+            required
+          />
+        </Field>
+        <Field label="Kapasitas">
+          <input
+            inputMode="numeric"
+            value={form.capacity}
+            onChange={(event) => update("capacity", event.target.value)}
+            className={`${inputClassName} w-[76px]`}
+            required
+          />
+        </Field>
+        <label className="flex h-[41px] items-center gap-1.5 text-[11px] font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={form.active}
+            onChange={(event) => update("active", event.target.checked)}
+            className={checkboxClassName}
+          />
+          Aktif
+        </label>
+        <div className="ml-auto flex h-[41px] items-center gap-2">
+          {slot && (
+            <span className="text-[10px] font-bold text-deep-ube">
+              {slot.filled} / {slot.capacity} terisi
+            </span>
+          )}
+          <button type="submit" disabled={pending} className={secondaryButtonClassName}>
+            {slot ? "Simpan" : "+ Tambah slot"}
+          </button>
+          {slot && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={remove}
+              className={secondaryButtonClassName}
+            >
+              Hapus
+            </button>
+          )}
+        </div>
+      </form>
+    </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Delivery zones
+// ---------------------------------------------------------------------------
+
+export function DeliveryZonesDialog({
+  open,
+  onClose,
+  batchId,
+  zones,
+}: {
+  open: boolean;
+  onClose: () => void;
+  batchId: string;
+  zones: ZoneRow[];
+}) {
+  return (
+    <AdminDialog
+      open={open}
+      onClose={onClose}
+      title="Area, jadwal & ongkir delivery"
+      description="Ongkir tampil ke pelanggan sebelum invoice dibuat. Area yang sudah dipakai pesanan tidak bisa dihapus."
+      className="w-[min(860px,calc(100vw-32px))]"
+    >
+      <ul className="flex flex-col gap-2.5">
+        {zones.map((zone) => (
+          <DeliveryZoneForm key={zone.id} batchId={batchId} zone={zone} />
+        ))}
+        <DeliveryZoneForm key={`new-${zones.length}`} batchId={batchId} />
+      </ul>
+    </AdminDialog>
+  );
+}
+
+function DeliveryZoneForm({ batchId, zone }: { batchId: string; zone?: ZoneRow }) {
+  const run = useMutationRunner();
+  const [pending, setPending] = useState(false);
+  const [form, setForm] = useState({
+    name: zone?.name ?? "",
+    date: toDateValue(zone?.windowStartsAt ?? new Date()),
+    start: zone ? toTimeValue(zone.windowStartsAt) : "13:00",
+    end: zone ? toTimeValue(zone.windowEndsAt) : "16:00",
+    fee: zone ? String(zone.fee) : "",
+    active: zone?.active ?? true,
+  });
+  const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const parsed = saveDeliveryZoneSchema.safeParse({
+      id: zone?.id,
+      batchId,
+      name: form.name,
+      windowStartsAt: fromWib(form.date, form.start),
+      windowEndsAt: fromWib(form.date, form.end),
+      fee: parseOptionalInt(form.fee) ?? 0,
+      active: form.active,
+    });
+    if (!parsed.success) return void toast.error(firstIssue(parsed.error));
+    setPending(true);
+    await run(
+      () => saveDeliveryZone({ data: parsed.data }),
+      zone ? "Area delivery disimpan" : "Area delivery ditambahkan",
+    );
+    setPending(false);
+  };
+
+  const remove = async () => {
+    if (!zone) return;
+    setPending(true);
+    await run(() => deleteDeliveryZone({ data: { id: zone.id } }), "Area delivery dihapus");
+    setPending(false);
+  };
+
+  return (
+    <li className="rounded-lg bg-vanilla px-3 py-2.5">
+      <form onSubmit={submit} className="flex flex-wrap items-end gap-2.5">
+        <Field label="Nama area">
+          <input
+            value={form.name}
+            onChange={(event) => update("name", event.target.value)}
+            className={`${inputClassName} w-[150px]`}
+            required
+          />
+        </Field>
+        <Field label="Tanggal">
+          <input
+            type="date"
+            value={form.date}
+            onChange={(event) => update("date", event.target.value)}
+            className={`${inputClassName} w-[140px]`}
+            required
+          />
+        </Field>
+        <Field label="Mulai">
+          <input
+            type="time"
+            value={form.start}
+            onChange={(event) => update("start", event.target.value)}
+            className={`${inputClassName} w-[92px]`}
+            required
+          />
+        </Field>
+        <Field label="Selesai">
+          <input
+            type="time"
+            value={form.end}
+            onChange={(event) => update("end", event.target.value)}
+            className={`${inputClassName} w-[92px]`}
+            required
+          />
+        </Field>
+        <Field label="Ongkir (Rp)">
+          <input
+            inputMode="numeric"
+            value={form.fee}
+            placeholder="0"
+            onChange={(event) => update("fee", event.target.value)}
+            className={`${inputClassName} w-[92px]`}
+          />
+        </Field>
+        <label className="flex h-[41px] items-center gap-1.5 text-[11px] font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={form.active}
+            onChange={(event) => update("active", event.target.checked)}
+            className={checkboxClassName}
+          />
+          Aktif
+        </label>
+        <div className="ml-auto flex h-[41px] items-center gap-2">
+          <button type="submit" disabled={pending} className={secondaryButtonClassName}>
+            {zone ? "Simpan" : "+ Tambah area"}
+          </button>
+          {zone && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={remove}
+              className={secondaryButtonClassName}
+            >
+              Hapus
+            </button>
+          )}
+        </div>
+      </form>
+    </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add product to batch
+// ---------------------------------------------------------------------------
+
+const NEW_PRODUCT = "__new__";
+
+export function AddProductDialog({
+  open,
+  onClose,
+  batchId,
+  candidates,
+}: {
+  open: boolean;
+  onClose: () => void;
+  batchId: string;
+  /** Existing products not yet sold in this batch. */
+  candidates: { id: string; name: string }[];
+}) {
+  return (
+    <AdminDialog
+      open={open}
+      onClose={onClose}
+      title="Tambah produk ke batch"
+      description="Produk baru dibuat sebagai draf; lengkapi detailnya lalu tayangkan dari editor produk."
+    >
+      <AddProductForm batchId={batchId} candidates={candidates} onDone={onClose} />
+    </AdminDialog>
+  );
+}
+
+function AddProductForm({
+  batchId,
+  candidates,
+  onDone,
+}: {
+  batchId: string;
+  candidates: { id: string; name: string }[];
+  onDone: () => void;
+}) {
+  const navigate = useNavigate();
+  const run = useMutationRunner();
+  const [pending, setPending] = useState(false);
+  const [choice, setChoice] = useState(candidates[0]?.id ?? NEW_PRODUCT);
+  const [form, setForm] = useState({
+    name: "",
+    category: "camilan" as (typeof productCategories)[number],
+    unit: "porsi" as (typeof productUnits)[number],
+    price: "",
+    capacity: "",
+  });
+  const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  const isNew = choice === NEW_PRODUCT;
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const parsed = addBatchProductSchema.safeParse({
+      batchId,
+      productId: isNew ? undefined : choice,
+      newProduct: isNew
+        ? {
+            name: form.name,
+            category: form.category,
+            unit: form.unit,
+            price: parseOptionalInt(form.price) ?? 0,
+          }
+        : undefined,
+      capacity: parseOptionalInt(form.capacity),
+    });
+    if (!parsed.success) return void toast.error(firstIssue(parsed.error));
+    setPending(true);
+    let slug: string | undefined;
+    const ok = await run(async () => {
+      ({ slug } = await addBatchProduct({ data: parsed.data }));
+    }, "Produk ditambahkan ke batch");
+    setPending(false);
+    if (!ok || !slug) return;
+    onDone();
+    if (isNew) await navigate({ to: "/dashboard/batch-produk/$slug", params: { slug } });
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <Field label="Produk">
+        <OptionSelect
+          options={[
+            ...candidates.map(({ id, name }) => ({ value: id, label: name })),
+            { value: NEW_PRODUCT, label: "Produk baru…" },
+          ]}
+          value={choice}
+          onChange={setChoice}
+        />
+      </Field>
+      {isNew && (
+        <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
+          <Field label="Nama produk">
+            <input
+              value={form.name}
+              onChange={(event) => update("name", event.target.value)}
+              className={inputClassName}
+              required
+            />
+          </Field>
+          <Field label="Harga per satuan (Rp)">
+            <input
+              inputMode="numeric"
+              value={form.price}
+              placeholder="0"
+              onChange={(event) => update("price", event.target.value)}
+              className={inputClassName}
+              required
+            />
+          </Field>
+          <Field label="Kategori">
+            <OptionSelect
+              options={categoryOptions}
+              value={form.category}
+              onChange={(value) => update("category", value)}
+            />
+          </Field>
+          <Field label="Satuan">
+            <OptionSelect
+              options={unitOptions}
+              value={form.unit}
+              onChange={(value) => update("unit", value)}
+            />
+          </Field>
+        </div>
+      )}
+      <Field label="Kapasitas batch" hint="Kosongkan bila tidak dibatasi.">
+        <input
+          inputMode="numeric"
+          value={form.capacity}
+          onChange={(event) => update("capacity", event.target.value)}
+          className={inputClassName}
+        />
+      </Field>
+      <div className="flex justify-end">
+        <button type="submit" disabled={pending} className={primaryButtonClassName}>
+          Tambahkan
+        </button>
+      </div>
+    </form>
+  );
+}

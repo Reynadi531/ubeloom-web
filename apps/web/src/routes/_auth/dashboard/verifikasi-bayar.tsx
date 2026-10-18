@@ -1,89 +1,35 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Check, Image, ShieldCheck } from "lucide-react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { AlertTriangle, Check, Image, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { z } from "zod";
 
 import { AdminPage, BatchStatusPill, PageHeading } from "@/components/admin/admin-page";
 import { CompactMetric } from "@/components/admin/metric-card";
 import { PaymentReviewRow } from "@/components/admin/payment-review/payment-review-row";
-import { StatusBadge } from "@/components/admin/status-badge";
+import { StatusBadge, type StatusTone } from "@/components/admin/status-badge";
+import {
+  type PaymentReviewAttempt,
+  approvePayment,
+  getPaymentReview,
+  rejectPayment,
+} from "@/functions/payments";
+import {
+  formatDayMonth,
+  formatRupiah,
+  formatTime,
+  formatWeekday,
+  toDateInputValue,
+} from "@/lib/format";
 
 export const Route = createFileRoute("/_auth/dashboard/verifikasi-bayar")({
   head: () => ({
     meta: [{ title: "Verifikasi pembayaran · ubeloom" }],
   }),
+  validateSearch: z.object({ attempt: z.string().min(1).optional().catch(undefined) }),
+  loader: () => getPaymentReview(),
   component: PaymentReviewComponent,
 });
-
-type PaymentAttempt = {
-  invoice: string;
-  attempt: number;
-  time: string;
-  customer: string;
-  amount: string;
-  status: string;
-  claimed: string;
-  customerReference: string;
-  merchantMutation: string;
-  orderMethod: string;
-};
-
-// Sample data until payment attempts live in the database.
-const metrics: { label: string; value: string; detail: string }[] = [
-  { label: "MENUNGGU REVIEW", value: "7 bukti", detail: "3 perlu ditangani hari ini" },
-  { label: "DISETUJUI HARI INI", value: "12", detail: "Mutasi merchant cocok" },
-  { label: "DITOLAK", value: "2", detail: "Riwayat percobaan tersimpan" },
-];
-
-const attempts: PaymentAttempt[] = [
-  {
-    invoice: "UBP-20261016-A7K9M2Q4",
-    attempt: 1,
-    time: "09.46 WIB",
-    customer: "Rani A.",
-    amount: "Rp 168.000",
-    status: "Perlu review",
-    claimed: "Rp 168.000 · 16 Okt 09.46",
-    customerReference: "TRX-948231",
-    merchantMutation: "Belum dikonfirmasi",
-    orderMethod: "Delivery · ongkir Rp 8.000",
-  },
-  {
-    invoice: "UBP-20261016-D8P4L1S3",
-    attempt: 1,
-    time: "10.12 WIB",
-    customer: "Bima R.",
-    amount: "Rp 224.000",
-    status: "Perlu review",
-    claimed: "Rp 224.000 · 16 Okt 10.12",
-    customerReference: "TRX-948377",
-    merchantMutation: "Belum dikonfirmasi",
-    orderMethod: "Pickup · Sabtu 10.00–15.00",
-  },
-  {
-    invoice: "UBP-20261016-M4V6C9T1",
-    attempt: 2,
-    time: "08.31 WIB",
-    customer: "Aditya P.",
-    amount: "Rp 280.000",
-    status: "Bukti ulang",
-    claimed: "Rp 280.000 · 16 Okt 08.31",
-    customerReference: "TRX-947905",
-    merchantMutation: "Belum dikonfirmasi",
-    orderMethod: "Delivery · ongkir Rp 12.000",
-  },
-  {
-    invoice: "UBP-20261016-E8R5S2P7",
-    attempt: 2,
-    time: "Kemarin",
-    customer: "Sinta M.",
-    amount: "Rp 92.000",
-    status: "Ditolak sebelumnya",
-    claimed: "Rp 92.000 · 15 Okt 19.20",
-    customerReference: "TRX-946112",
-    merchantMutation: "Belum dikonfirmasi",
-    orderMethod: "Pickup · Sabtu 10.00–15.00",
-  },
-];
 
 const checklist = [
   "Nominal dan mata uang cocok dengan invoice",
@@ -91,19 +37,111 @@ const checklist = [
   "Referensi transaksi belum dipakai invoice lain",
 ];
 
+const rejectionReasons = [
+  "Nominal tidak sesuai invoice",
+  "Mutasi merchant tidak ditemukan",
+  "Bukti tidak terbaca / tidak valid",
+  "Referensi sudah dipakai invoice lain",
+  "Lainnya",
+];
+
+const batchStatusLabels = {
+  draft: "DRAF",
+  open: "DIBUKA",
+  closed: "DITUTUP",
+  archived: "DIARSIPKAN",
+} as const;
+
+const detailBadges: Record<PaymentReviewAttempt["status"], { tone: StatusTone; label: string }> = {
+  pending: { tone: "gold", label: "UNDER REVIEW" },
+  approved: { tone: "ready", label: "DISETUJUI" },
+  rejected: { tone: "muted", label: "DITOLAK" },
+};
+
 const cardClassName = "rounded-[14px] border border-ube-line bg-surface";
 const inputClassName =
   "h-10 w-full rounded-lg border border-ube-line px-3 text-[11px] text-ink outline-none placeholder:text-plum focus:border-ube-pop";
 
+/** "Rani A." — first name plus last initial for list views. */
+function shortName(name: string) {
+  const [first, ...rest] = name.trim().split(/\s+/);
+  const last = rest.at(-1);
+  return last ? `${first} ${last[0].toUpperCase()}.` : first;
+}
+
+/** Queue label from the design: first proof, re-submitted proof, or rejected. */
+function queueStatus(attempt: PaymentReviewAttempt) {
+  if (attempt.status === "rejected") return "Ditolak sebelumnya";
+  return attempt.attempt > 1 ? "Bukti ulang" : "Perlu review";
+}
+
+/** "09.46 WIB" today, "Kemarin" yesterday, otherwise "15 Okt". */
+function queueTime(value: Date, todayStart: Date) {
+  const day = toDateInputValue(value);
+  if (day === toDateInputValue(todayStart)) return `${formatTime(value)} WIB`;
+  const yesterday = new Date(todayStart.getTime() - 12 * 60 * 60 * 1000);
+  if (day === toDateInputValue(yesterday)) return "Kemarin";
+  return formatDayMonth(value);
+}
+
+function orderMethodLabel(order: PaymentReviewAttempt["order"]) {
+  if (order.method === "delivery") {
+    return `Delivery · ongkir ${formatRupiah(order.shippingFee)}`;
+  }
+  const slot = order.pickupSlot;
+  return slot
+    ? `Pickup · ${formatWeekday(slot.startsAt)} ${formatTime(slot.startsAt)}–${formatTime(slot.endsAt)}`
+    : "Pickup";
+}
+
+/** Server errors arrive as plain messages; validation errors as a JSON list of issues. */
+function errorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (message.startsWith("[")) {
+    try {
+      const [issue] = JSON.parse(message) as { message?: string }[];
+      if (issue?.message) return issue.message;
+    } catch {
+      // Not JSON; fall through to the raw message.
+    }
+  }
+  return message || "Terjadi kesalahan. Coba lagi.";
+}
+
 function PaymentReviewComponent() {
+  const { batch, metrics, attempts, todayStart } = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const [query, setQuery] = useState("");
-  const [selectedInvoice, setSelectedInvoice] = useState(attempts[0].invoice);
+
+  const pendingCount = metrics.pending;
+  const metricCards = [
+    {
+      label: "MENUNGGU REVIEW",
+      value: `${pendingCount} bukti`,
+      detail:
+        metrics.pendingBeforeToday > 0
+          ? `${metrics.pendingBeforeToday} perlu ditangani hari ini`
+          : "Semua masuk hari ini",
+    },
+    {
+      label: "DISETUJUI HARI INI",
+      value: String(metrics.approvedToday),
+      detail: "Mutasi merchant cocok",
+    },
+    { label: "DITOLAK", value: String(metrics.rejected), detail: "Riwayat percobaan tersimpan" },
+  ];
 
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleAttempts = attempts.filter(({ invoice, customerReference }) =>
-    `${invoice} ${customerReference}`.toLowerCase().includes(normalizedQuery),
+  const visibleAttempts = attempts.filter((attempt) =>
+    `${attempt.order.invoiceNumber} ${attempt.order.customerName} ${attempt.customerReference} ${attempt.merchantReference ?? ""}`
+      .toLowerCase()
+      .includes(normalizedQuery),
   );
-  const selected = attempts.find(({ invoice }) => invoice === selectedInvoice) ?? attempts[0];
+  const selected = attempts.find(({ id }) => id === search.attempt) ?? attempts[0];
+
+  const selectAttempt = (id: string) =>
+    navigate({ search: { attempt: id }, replace: true, resetScroll: false });
 
   return (
     <AdminPage>
@@ -111,11 +149,17 @@ function PaymentReviewComponent() {
         eyebrow="UBELOOM  /  ADMIN  /  VERIFIKASI BAYAR"
         title="Verifikasi pembayaran"
         description="Cocokkan bukti dengan mutasi QRIS merchant sebelum menyetujui."
-        actions={<BatchStatusPill />}
+        actions={
+          batch ? (
+            <BatchStatusPill
+              label={`BATCH ${batch.name.toUpperCase()} · ${batchStatusLabels[batch.status]}`}
+            />
+          ) : undefined
+        }
       />
 
       <section className="grid gap-3 sm:grid-cols-3">
-        {metrics.map((metric) => (
+        {metricCards.map((metric) => (
           <CompactMetric key={metric.label} {...metric} />
         ))}
       </section>
@@ -130,10 +174,10 @@ function PaymentReviewComponent() {
         <section className="flex flex-col gap-[11px] xl:w-[350px] xl:shrink-0">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-extrabold text-ink">Antrean bukti bayar</h2>
-            <p className="text-[10px] font-bold text-deep-ube">7 baru</p>
+            <p className="text-[10px] font-bold text-deep-ube">{pendingCount} baru</p>
           </div>
           <label className="sr-only" htmlFor="payment-search">
-            Cari invoice atau referensi
+            Cari invoice, pelanggan atau referensi
           </label>
           <input
             id="payment-search"
@@ -145,21 +189,35 @@ function PaymentReviewComponent() {
           />
           {visibleAttempts.map((attempt) => (
             <PaymentReviewRow
-              key={attempt.invoice}
-              {...attempt}
-              selected={attempt.invoice === selected.invoice}
-              onSelect={() => setSelectedInvoice(attempt.invoice)}
+              key={attempt.id}
+              invoice={attempt.order.invoiceNumber}
+              time={queueTime(attempt.createdAt, todayStart)}
+              customer={shortName(attempt.order.customerName)}
+              amount={formatRupiah(attempt.claimedAmount)}
+              status={queueStatus(attempt)}
+              selected={attempt.id === selected?.id}
+              onSelect={() => selectAttempt(attempt.id)}
             />
           ))}
           {visibleAttempts.length === 0 && (
             <p className="py-4 text-center text-[11px] text-plum">
-              Tidak ada bukti bayar yang cocok.
+              {attempts.length === 0
+                ? "Belum ada bukti bayar yang menunggu review."
+                : "Tidak ada bukti bayar yang cocok."}
             </p>
           )}
         </section>
 
-        {/* Keyed so the checklist and reference reset when another attempt is opened. */}
-        <PaymentDetail key={selected.invoice} attempt={selected} />
+        {selected ? (
+          // Keyed so the checklist and reference reset when another attempt is opened.
+          <PaymentDetail key={selected.id} attempt={selected} />
+        ) : (
+          <section
+            className={`${cardClassName} flex min-h-[200px] min-w-0 flex-1 items-center justify-center p-5 text-[11px] text-plum`}
+          >
+            Pilih bukti bayar dari antrean untuk ditinjau.
+          </section>
+        )}
       </div>
 
       <footer className="border-t border-ube-line pt-[13px] text-[11px] text-plum">
@@ -172,21 +230,76 @@ function PaymentReviewComponent() {
   );
 }
 
-function PaymentDetail({ attempt }: { attempt: PaymentAttempt }) {
+function PaymentDetail({ attempt }: { attempt: PaymentReviewAttempt }) {
+  const router = useRouter();
   const [checked, setChecked] = useState<boolean[]>(() => checklist.map(() => false));
   const [merchantReference, setMerchantReference] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState(rejectionReasons[0]);
+  const [rejectNote, setRejectNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
+  const { order } = attempt;
+  const pending = attempt.status === "pending";
+  const amountMatches = attempt.claimedAmount === order.total;
+  const cancelled = order.fulfillmentStatus === "cancelled";
   // Approval needs every check plus the verified merchant reference.
-  const canApprove = checked.every(Boolean) && merchantReference.trim() !== "";
+  const canApprove =
+    pending &&
+    amountMatches &&
+    !cancelled &&
+    checked.every(Boolean) &&
+    merchantReference.trim() !== "";
+  const badge = detailBadges[attempt.status];
 
   const comparison: [string, string][] = [
-    ["Total invoice", attempt.amount],
-    ["Diklaim dibayar", attempt.claimed],
+    ["Total invoice", formatRupiah(order.total)],
+    [
+      "Diklaim dibayar",
+      `${formatRupiah(attempt.claimedAmount)} · ${formatDayMonth(attempt.claimedPaidAt)} ${formatTime(attempt.claimedPaidAt)}`,
+    ],
     ["Merchant QRIS", "ubeloom · cocokkan nama"],
     ["Ref. pelanggan", attempt.customerReference],
-    ["Mutasi merchant", attempt.merchantMutation],
-    ["Metode pesanan", attempt.orderMethod],
+    ["Mutasi merchant", attempt.merchantReference ?? "Belum dikonfirmasi"],
+    ["Metode pesanan", orderMethodLabel(order)],
   ];
+
+  async function run(action: () => Promise<unknown>, success: string) {
+    setSubmitting(true);
+    try {
+      await action();
+      toast.success(success);
+      await router.invalidate();
+    } catch (error) {
+      toast.error(errorMessage(error));
+      // The attempt may have been reviewed elsewhere; refresh the queue either way.
+      await router.invalidate();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const approve = () =>
+    run(
+      () =>
+        approvePayment({
+          data: {
+            attemptId: attempt.id,
+            merchantReference: merchantReference.trim(),
+            checklistConfirmed: true,
+          },
+        }),
+      `Pembayaran ${order.invoiceNumber} disetujui.`,
+    );
+
+  const reject = () =>
+    run(
+      () =>
+        rejectPayment({
+          data: { attemptId: attempt.id, reason, note: rejectNote.trim() || undefined },
+        }),
+      `Bukti ${order.invoiceNumber} ditolak.`,
+    );
 
   return (
     <section
@@ -199,91 +312,203 @@ function PaymentDetail({ attempt }: { attempt: PaymentAttempt }) {
             {`PERCOBAAN #${attempt.attempt}  /  INVOICE`}
           </p>
           <h2 id="payment-detail-title" className="text-base font-bold break-all text-ink">
-            {attempt.invoice}
+            {order.invoiceNumber}
           </h2>
         </div>
-        <StatusBadge tone="gold" className="rounded-[7px] px-2.5 py-[7px]">
-          UNDER REVIEW
+        <StatusBadge tone={badge.tone} className="rounded-[7px] px-2.5 py-[7px]">
+          {badge.label}
         </StatusBadge>
       </div>
 
       <div className="flex flex-col gap-3.5 sm:flex-row">
-        <div className="flex h-[200px] flex-col items-center justify-center gap-[9px] rounded-[9px] bg-vanilla sm:w-[215px] sm:shrink-0">
-          <Image aria-hidden className="size-[26px] text-deep-ube" />
-          <p className="text-xs font-bold text-ink">Bukti bayar privat</p>
-          <p className="text-[10px] text-plum">JPG/PNG · maks. 5 MB</p>
-        </div>
+        {attempt.proofUrl ? (
+          <a
+            href={attempt.proofUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block h-[200px] overflow-hidden rounded-[9px] bg-vanilla sm:w-[215px] sm:shrink-0"
+          >
+            <img
+              src={attempt.proofUrl}
+              alt={`Bukti bayar ${order.invoiceNumber}`}
+              className="size-full object-contain"
+            />
+          </a>
+        ) : (
+          <div className="flex h-[200px] flex-col items-center justify-center gap-[9px] rounded-[9px] bg-vanilla sm:w-[215px] sm:shrink-0">
+            <Image aria-hidden className="size-[26px] text-deep-ube" />
+            <p className="text-xs font-bold text-ink">Bukti bayar privat</p>
+            <p className="text-[10px] text-plum">Belum ada gambar terlampir</p>
+          </div>
+        )}
         <dl className="flex min-w-0 flex-1 flex-col gap-2.5 text-[10px]">
           {comparison.map(([label, value]) => (
             <div key={label} className="flex justify-between gap-3">
               <dt className="shrink-0 text-plum">{label}</dt>
-              <dd className="text-right font-bold text-ink">{value}</dd>
+              <dd className="text-right font-bold break-all text-ink">{value}</dd>
             </div>
           ))}
+          <div className="flex justify-between gap-3">
+            <dt className="shrink-0 text-plum">Pelanggan</dt>
+            <dd className="text-right font-bold text-ink">
+              {order.customerName} · {order.customerPhone}
+            </dd>
+          </div>
         </dl>
       </div>
 
-      <div
-        role="group"
-        aria-labelledby="approval-checklist-title"
-        className="flex flex-col gap-[9px] rounded-[9px] bg-vanilla p-3.5"
-      >
-        <h3 id="approval-checklist-title" className="text-xs font-extrabold text-ink">
-          Sebelum menyetujui
-        </h3>
-        {checklist.map((item, index) => (
-          <label
-            key={item}
-            className="flex cursor-pointer items-center gap-2 text-[10px] text-plum"
+      {pending && cancelled && (
+        <p className="flex items-center gap-2 rounded-[9px] bg-[#fff1d3] px-3.5 py-2.5 text-[10px] font-semibold text-[#855814]">
+          <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
+          Pesanan ini sudah dibatalkan. Tolak bukti dan proses pengembalian dana bila perlu.
+        </p>
+      )}
+
+      {pending && !amountMatches && (
+        <p className="flex items-center gap-2 rounded-[9px] bg-[#fff1d3] px-3.5 py-2.5 text-[10px] font-semibold text-[#855814]">
+          <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
+          Nominal diklaim berbeda {formatRupiah(Math.abs(order.total - attempt.claimedAmount))} dari
+          total invoice. Tolak dan minta bukti ulang.
+        </p>
+      )}
+
+      {!pending && (
+        <p className="rounded-[9px] bg-vanilla px-3.5 py-2.5 text-[10px] text-plum">
+          {attempt.status === "rejected" ? "Ditolak" : "Disetujui"}
+          {attempt.reviewedBy ? ` oleh ${attempt.reviewedBy}` : ""}
+          {attempt.reviewedAt
+            ? ` · ${formatDayMonth(attempt.reviewedAt)} ${formatTime(attempt.reviewedAt)} WIB`
+            : ""}
+          {attempt.reviewNote ? ` — ${attempt.reviewNote}` : ""}.
+          {attempt.status === "rejected" && " Menunggu bukti ulang dari pelanggan."}
+        </p>
+      )}
+
+      {pending && (
+        <>
+          <div
+            role="group"
+            aria-labelledby="approval-checklist-title"
+            className="flex flex-col gap-[9px] rounded-[9px] bg-vanilla p-3.5"
           >
-            <span className="relative flex size-3.5 shrink-0">
-              <input
-                type="checkbox"
-                checked={checked[index]}
-                onChange={(event) =>
-                  setChecked((current) =>
-                    current.map((value, i) => (i === index ? event.target.checked : value)),
-                  )
-                }
-                className="peer size-3.5 cursor-pointer appearance-none rounded-[3px] border border-deep-ube bg-transparent checked:bg-deep-ube focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ube-pop"
-              />
-              <Check
-                aria-hidden
-                strokeWidth={3}
-                className="pointer-events-none absolute inset-0 m-auto size-2.5 text-vanilla opacity-0 peer-checked:opacity-100"
-              />
-            </span>
-            {item}
+            <h3 id="approval-checklist-title" className="text-xs font-extrabold text-ink">
+              Sebelum menyetujui
+            </h3>
+            {checklist.map((item, index) => (
+              <label
+                key={item}
+                className="flex cursor-pointer items-center gap-2 text-[10px] text-plum"
+              >
+                <span className="relative flex size-3.5 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={checked[index]}
+                    onChange={(event) =>
+                      setChecked((current) =>
+                        current.map((value, i) => (i === index ? event.target.checked : value)),
+                      )
+                    }
+                    className="peer size-3.5 cursor-pointer appearance-none rounded-[3px] border border-deep-ube bg-transparent checked:bg-deep-ube focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ube-pop"
+                  />
+                  <Check
+                    aria-hidden
+                    strokeWidth={3}
+                    className="pointer-events-none absolute inset-0 m-auto size-2.5 text-vanilla opacity-0 peer-checked:opacity-100"
+                  />
+                </span>
+                {item}
+              </label>
+            ))}
+          </div>
+
+          <label className="sr-only" htmlFor="merchant-reference">
+            Referensi merchant terverifikasi
           </label>
-        ))}
-      </div>
+          <input
+            id="merchant-reference"
+            value={merchantReference}
+            onChange={(event) => setMerchantReference(event.target.value)}
+            placeholder="Masukkan referensi merchant terverifikasi (wajib saat setuju)"
+            className={inputClassName}
+          />
 
-      <label className="sr-only" htmlFor="merchant-reference">
-        Referensi merchant terverifikasi
-      </label>
-      <input
-        id="merchant-reference"
-        value={merchantReference}
-        onChange={(event) => setMerchantReference(event.target.value)}
-        placeholder="Masukkan referensi merchant terverifikasi (wajib saat setuju)"
-        className={inputClassName}
-      />
+          {rejecting && (
+            <div
+              role="group"
+              aria-labelledby="reject-title"
+              className="flex flex-col gap-2 rounded-[9px] border border-ube-line bg-white p-3.5"
+            >
+              <h3 id="reject-title" className="text-xs font-extrabold text-ink">
+                Alasan penolakan
+              </h3>
+              <label className="sr-only" htmlFor="reject-reason">
+                Alasan
+              </label>
+              <select
+                id="reject-reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                className={inputClassName}
+              >
+                {rejectionReasons.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+              <label className="sr-only" htmlFor="reject-note">
+                Catatan untuk pelanggan
+              </label>
+              <textarea
+                id="reject-note"
+                value={rejectNote}
+                onChange={(event) => setRejectNote(event.target.value)}
+                rows={2}
+                placeholder="Catatan untuk pelanggan (opsional)"
+                className={`${inputClassName} h-auto py-2`}
+              />
+            </div>
+          )}
 
-      <div className="flex flex-wrap justify-end gap-2.5">
-        <button
-          type="button"
-          className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
-        >
-          Tolak dengan alasan
-        </button>
-        <button
-          type="button"
-          disabled={!canApprove}
-          className="rounded-full bg-deep-ube px-4 py-[11px] text-[11px] font-bold text-vanilla transition-colors not-disabled:hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Setujui pembayaran
-        </button>
-      </div>
+          <div className="flex flex-wrap justify-end gap-2.5">
+            {rejecting ? (
+              <>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setRejecting(false)}
+                  className="rounded-full px-4 py-[11px] text-[11px] font-bold text-plum transition-colors hover:text-deep-ube disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={reject}
+                  className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Konfirmasi tolak
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => setRejecting(true)}
+                className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Tolak dengan alasan
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!canApprove || submitting || rejecting}
+              onClick={approve}
+              className="rounded-full bg-deep-ube px-4 py-[11px] text-[11px] font-bold text-vanilla transition-colors not-disabled:hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Setujui pembayaran
+            </button>
+          </div>
+        </>
+      )}
     </section>
   );
 }

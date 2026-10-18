@@ -1,90 +1,38 @@
-import { Link, type LinkProps, createFileRoute } from "@tanstack/react-router";
+import { Link, type LinkProps, createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowUpRight,
   BadgeCheck,
+  CalendarPlus,
   ChevronDown,
   Clock3,
+  ImageOff,
   type LucideIcon,
   ScanEye,
   Store,
   Truck,
 } from "lucide-react";
+import { z } from "zod";
+
+import { getDashboardOverview } from "@/functions/dashboard";
 
 export const Route = createFileRoute("/_auth/dashboard/")({
+  validateSearch: z.object({ batch: z.string().optional() }),
+  loaderDeps: ({ search }) => ({ batchId: search.batch }),
+  loader: ({ deps }) => getDashboardOverview({ data: deps }),
   head: () => ({
     meta: [{ title: "Ringkasan · ubeloom" }],
   }),
   component: DashboardComponent,
 });
 
-// Sample data until orders and batches live in the database.
-const activeBatch = {
-  name: "Batch Oktober 2026",
-  deadline: "Tutup preorder 22 Okt · 20.00 WIB  /  Pickup & delivery tersedia",
-  activeOrders: 54,
-};
-
-const metrics: { label: string; value: number; note: string; icon: LucideIcon }[] = [
-  { label: "LUNAS", value: 42, note: "Siap diproses", icon: BadgeCheck },
-  { label: "MENUNGGU BAYAR", value: 12, note: "Invoice aktif", icon: Clock3 },
-  { label: "BUKTI DIREVIEW", value: 7, note: "Perlu verifikasi", icon: ScanEye },
-  { label: "SIAP DIKIRIM", value: 6, note: "Menunggu kurir", icon: Truck },
-];
-
-const orderGrowth: { day: string; total: number }[] = [
-  { day: "16 Okt", total: 8 },
-  { day: "17 Okt", total: 15 },
-  { day: "18 Okt", total: 23 },
-  { day: "19 Okt", total: 31 },
-  { day: "20 Okt", total: 42 },
-  { day: "21 Okt", total: 54 },
-];
-
-const actions: { count: number; title: string; description: string; to: LinkProps["to"] }[] = [
-  {
-    count: 7,
-    title: "Verifikasi bukti bayar",
-    description: "Periksa kecocokan nominal sebelum pesanan masuk produksi.",
-    to: "/dashboard/verifikasi-bayar",
-  },
-  {
-    count: 12,
-    title: "Tindak lanjut pembayaran",
-    description: "Invoice menunggu pembayaran pelanggan.",
-    to: "/dashboard/pesanan",
-  },
-  {
-    count: 6,
-    title: "Serahkan ke kurir",
-    description: "Pesanan lunas siap beralih ke dalam perjalanan.",
-    to: "/dashboard/produksi-kirim",
-  },
-];
-
-const publishedProducts: { slug: string; name: string; price: string; image: string }[] = [
-  {
-    slug: "lumpia-ubi-goreng",
-    name: "Lumpia Ubi Goreng",
-    price: "Rp 28.000",
-    image: "/images/lumpia-ubi-goreng.webp",
-  },
-  {
-    slug: "sparkling-starfruit",
-    name: "Sparkling Starfruit",
-    price: "Rp 16.000",
-    image: "/images/sparkling-starfruit.webp",
-  },
-];
-
-const fulfillment: { label: string; count: number; detail: string; icon: LucideIcon }[] = [
-  { label: "PICKUP TERJADWAL", count: 23, detail: "Sabtu · 10.00–15.00", icon: Store },
-  { label: "PERLU DIKIRIM", count: 19, detail: "6 siap diserahkan kurir", icon: Truck },
-];
+type Overview = Awaited<ReturnType<typeof getDashboardOverview>>;
+type LoadedOverview = Extract<Overview, { batch: object }>;
 
 const cardClassName = "rounded-xl border border-ube-line";
 
 function DashboardComponent() {
   const { session } = Route.useRouteContext();
+  const overview = Route.useLoaderData();
   const firstName = session.user.name.split(" ")[0];
 
   return (
@@ -102,13 +50,9 @@ function DashboardComponent() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            className="flex items-center gap-3 rounded-lg border border-ube-line px-3 py-2.5 text-[11px] font-semibold text-ink transition-colors hover:bg-vanilla"
-          >
-            {activeBatch.name}
-            <ChevronDown className="size-3.5 text-plum" />
-          </button>
+          {overview.batch && (
+            <BatchPicker batches={overview.batches} currentId={overview.batch.id} />
+          )}
           <Link
             to="/dashboard/pesanan"
             className="flex items-center gap-[7px] rounded-lg bg-deep-ube px-[15px] py-[11px] text-[11px] font-bold text-white transition-colors hover:bg-ube-pop"
@@ -119,20 +63,140 @@ function DashboardComponent() {
         </div>
       </div>
 
+      {overview.batch ? <BatchOverview overview={overview} /> : <NoBatch />}
+    </main>
+  );
+}
+
+function BatchPicker({
+  batches,
+  currentId,
+}: {
+  batches: LoadedOverview["batches"];
+  currentId: string;
+}) {
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  return (
+    <label className="relative flex items-center rounded-lg border border-ube-line text-[11px] font-semibold text-ink transition-colors focus-within:ring-2 focus-within:ring-ube-pop/30 hover:bg-vanilla">
+      <span className="sr-only">Pilih batch</span>
+      <select
+        value={currentId}
+        onChange={(event) => navigate({ search: { batch: event.target.value } })}
+        className="cursor-pointer appearance-none bg-transparent py-2.5 pr-9 pl-3 outline-none"
+      >
+        {batches.map(({ id, name }) => (
+          <option key={id} value={id}>
+            Batch {name}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute right-3 size-3.5 text-plum"
+      />
+    </label>
+  );
+}
+
+function NoBatch() {
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-6 rounded-[15px] bg-deep-ube px-[29px] py-[23px] lg:min-h-[164px]">
+      <div className="flex max-w-[540px] flex-col gap-[9px]">
+        <p className="text-[10px] font-bold tracking-[1.1px] whitespace-pre text-[#ffd6ed]">
+          ● BELUM ADA BATCH
+        </p>
+        <h2 className="font-display text-[27px]/[1.2] font-bold text-white">
+          Mulai batch preorder pertama.
+        </h2>
+        <p className="text-xs text-[#f6e8f1]">
+          Ringkasan pesanan, pembayaran dan distribusi tampil di sini setelah batch dibuat.
+        </p>
+      </div>
+      <Link
+        to="/dashboard/batch-produk"
+        className="flex items-center gap-[7px] rounded-lg bg-white px-[15px] py-[11px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
+      >
+        <CalendarPlus className="size-3.5" />
+        Atur batch &amp; produk
+      </Link>
+    </section>
+  );
+}
+
+function BatchOverview({ overview }: { overview: LoadedOverview }) {
+  const { batch, growth, products } = overview;
+
+  const metrics: { label: string; value: number; note: string; icon: LucideIcon }[] = [
+    { label: "LUNAS", value: overview.metrics.paid, note: "Siap diproses", icon: BadgeCheck },
+    {
+      label: "MENUNGGU BAYAR",
+      value: overview.metrics.unpaid,
+      note: "Invoice aktif",
+      icon: Clock3,
+    },
+    {
+      label: "BUKTI DIREVIEW",
+      value: overview.metrics.inReview,
+      note: "Perlu verifikasi",
+      icon: ScanEye,
+    },
+    {
+      label: "SIAP DIKIRIM",
+      value: overview.metrics.readyDelivery,
+      note: "Menunggu kurir",
+      icon: Truck,
+    },
+  ];
+
+  const actions: { count: number; title: string; description: string; to: LinkProps["to"] }[] = [
+    {
+      count: overview.metrics.inReview,
+      title: "Verifikasi bukti bayar",
+      description: "Periksa kecocokan nominal sebelum pesanan masuk produksi.",
+      to: "/dashboard/verifikasi-bayar",
+    },
+    {
+      count: overview.metrics.unpaid,
+      title: "Tindak lanjut pembayaran",
+      description: "Invoice menunggu pembayaran pelanggan.",
+      to: "/dashboard/pesanan",
+    },
+    {
+      count: overview.metrics.readyDelivery,
+      title: "Serahkan ke kurir",
+      description: "Pesanan lunas siap beralih ke dalam perjalanan.",
+      to: "/dashboard/produksi-kirim",
+    },
+  ];
+
+  const fulfillment: { label: string; count: number; detail: string; icon: LucideIcon }[] = [
+    {
+      label: "PICKUP TERJADWAL",
+      count: overview.fulfillment.pickup.count,
+      detail: overview.fulfillment.pickup.detail,
+      icon: Store,
+    },
+    {
+      label: "PERLU DIKIRIM",
+      count: overview.fulfillment.delivery.count,
+      detail: overview.fulfillment.delivery.detail,
+      icon: Truck,
+    },
+  ];
+
+  return (
+    <>
       <section className="flex flex-wrap items-center justify-between gap-6 rounded-[15px] bg-deep-ube px-[29px] py-[23px] lg:min-h-[164px]">
         <div className="flex max-w-[540px] flex-col gap-[9px]">
           <p className="text-[10px] font-bold tracking-[1.1px] whitespace-pre text-[#ffd6ed]">
-            ● PREORDER DIBUKA
+            {batch.eyebrow}
           </p>
-          <h2 className="font-display text-[27px]/[1.2] font-bold text-white">
-            {activeBatch.name}
-          </h2>
-          <p className="text-xs whitespace-pre-wrap text-[#f6e8f1]">{activeBatch.deadline}</p>
+          <h2 className="font-display text-[27px]/[1.2] font-bold text-white">{batch.name}</h2>
+          <p className="text-xs whitespace-pre-wrap text-[#f6e8f1]">{batch.deadline}</p>
         </div>
         <div className="flex flex-col items-end gap-[3px]">
-          <p className="font-display text-[43px]/none font-bold text-white">
-            {activeBatch.activeOrders}
-          </p>
+          <p className="font-display text-[43px]/none font-bold text-white">{batch.activeOrders}</p>
           <p className="text-[10px] font-bold tracking-[1px] text-[#f5dcec]">PESANAN AKTIF</p>
         </div>
       </section>
@@ -153,7 +217,7 @@ function DashboardComponent() {
         ))}
       </section>
 
-      <OrderGrowthChart />
+      <OrderGrowthChart range={growth.range} points={growth.points} />
 
       <div className="grid gap-[18px] xl:grid-cols-[616fr_368fr]">
         <section className={`${cardClassName} flex flex-col gap-[15px] px-[22px] py-5`}>
@@ -188,20 +252,31 @@ function DashboardComponent() {
             link="Kelola"
             to="/dashboard/batch-produk"
           />
-          {publishedProducts.map(({ slug, name, price, image }) => (
+          {products.length === 0 && (
+            <p className="border-t border-ube-line pt-[13px] text-[11px] text-plum">
+              Belum ada produk yang tayang di halaman pelanggan.
+            </p>
+          )}
+          {products.map(({ slug, name, price, image }) => (
             <Link
               key={slug}
               to="/dashboard/batch-produk/$slug"
               params={{ slug }}
               className="group flex items-center gap-[11px] border-t border-ube-line pt-[13px]"
             >
-              <img
-                src={image}
-                alt={name}
-                width={56}
-                height={56}
-                className="size-14 shrink-0 rounded-[7px] object-cover"
-              />
+              {image ? (
+                <img
+                  src={image}
+                  alt={name}
+                  width={56}
+                  height={56}
+                  className="size-14 shrink-0 rounded-[7px] object-cover"
+                />
+              ) : (
+                <span className="flex size-14 shrink-0 items-center justify-center rounded-[7px] bg-vanilla">
+                  <ImageOff aria-hidden className="size-4 text-plum" />
+                </span>
+              )}
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <p className="text-xs font-bold text-ink group-hover:text-deep-ube">{name}</p>
                 <p className="text-[10px] whitespace-pre text-plum">{price} · Tayang</p>
@@ -242,10 +317,10 @@ function DashboardComponent() {
       </section>
 
       <footer className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-plum">
-        <span>Data contoh · {activeBatch.name} · Waktu ditampilkan dalam WIB</span>
+        <span>{batch.name} · Waktu ditampilkan dalam WIB</span>
         <span className="font-semibold">Akses administrator saja</span>
       </footer>
-    </main>
+    </>
   );
 }
 
@@ -276,27 +351,28 @@ function CardHeading({
   );
 }
 
-function OrderGrowthChart() {
-  const max = Math.max(...orderGrowth.map(({ total }) => total));
-  const latest = orderGrowth.at(-1);
+function OrderGrowthChart({ range, points }: LoadedOverview["growth"]) {
+  // Keep bars at zero height when there are no orders yet.
+  const max = Math.max(1, ...points.map(({ total }) => total));
+  const latest = points.at(-1);
 
   return (
     <section className={`${cardClassName} flex flex-col gap-[13px] bg-white px-[23px] py-[19px]`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-lg/[1.2] font-bold text-ink">Pertumbuhan pesanan</h2>
-          <p className="text-[11px] text-plum">Akumulasi pesanan aktif · 16–21 Okt</p>
+          <p className="text-[11px] text-plum">Akumulasi pesanan aktif · {range}</p>
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="font-display text-lg/[1.2] font-bold text-deep-ube">
             {latest?.total} pesanan
           </p>
-          <p className="text-[9px] font-bold tracking-[0.8px] text-plum">DATA CONTOH</p>
+          <p className="text-[9px] font-bold tracking-[0.8px] text-plum">PER HARI · WIB</p>
         </div>
       </div>
 
       <ol className="flex h-[139px] items-end gap-[9px]" aria-label="Akumulasi pesanan per hari">
-        {orderGrowth.map(({ day, total }) => (
+        {points.map(({ day, total }) => (
           <li
             key={day}
             className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-[5px]"

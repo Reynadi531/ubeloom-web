@@ -31,6 +31,7 @@
         "@web-kwu/db": "workspace:*",
         "@web-kwu/ui": "workspace:*",
         "better-auth": "catalog:",
+        "drizzle-orm": "catalog:",
         "evlog": "^2.30.1",
         "lenis": "^1.3.27",
         "lucide-react": "^1.56.0",

@@ -8,10 +8,14 @@ export interface Product {
   variant: { mobile: string; desktop: string };
   description: { mobile: string; desktop: string };
   care: { mobile: string; desktop: string };
+  /** Sellable in the current batch. */
+  available: boolean;
+  /** Badge text: "TERSEDIA", "HABIS" or "PREORDER DITUTUP". */
+  availability: string;
 }
 
 export default function ProductCard({ product }: { product: Product }) {
-  const { slug, name, price, image, variant, description, care } = product;
+  const { slug, name, price, image, variant, description, care, availability } = product;
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-ube-line bg-surface lg:rounded-[18px]">
@@ -59,7 +63,7 @@ export default function ProductCard({ product }: { product: Product }) {
             <span aria-hidden className="lg:hidden">
               ●{" "}
             </span>
-            TERSEDIA
+            {availability}
           </span>
           {/* Plain text until the preorder flow (design frame 02) exists to link to. */}
           <span className="font-body text-[11px] font-bold text-ube-pop">

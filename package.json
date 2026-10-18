@@ -43,6 +43,7 @@
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
     "db:seed": "cd apps/web && bun run db:seed",
+    "db:seed:shop": "cd apps/web && bun run db:seed:shop",
     "auth:generate": "cd apps/web && bun run auth:generate",
     "check": "oxlint && oxfmt --write"
   },

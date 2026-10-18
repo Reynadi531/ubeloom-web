@@ -4,7 +4,7 @@ import type { Product } from "./product-card";
 
 // Larger catalog card for the Menu page; the landing page keeps the compact ProductCard.
 export default function MenuProductCard({ product }: { product: Product }) {
-  const { slug, name, price, image, variant, description, care } = product;
+  const { slug, name, price, image, variant, description, care, availability } = product;
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-[18px] border border-ube-line bg-surface">
@@ -42,7 +42,7 @@ export default function MenuProductCard({ product }: { product: Product }) {
 
         <div className="flex items-center justify-between">
           <span className="rounded-[7px] bg-vanilla px-2.5 py-1.5 font-body text-[10px] font-bold text-deep-ube">
-            TERSEDIA
+            {availability}
           </span>
           {/* Plain text until the preorder flow (design frame 02) exists to link to. */}
           <span className="font-body text-[13px] font-bold text-ube-pop">

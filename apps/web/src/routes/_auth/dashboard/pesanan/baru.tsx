@@ -1,61 +1,149 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CloudUpload } from "lucide-react";
-import { type ReactNode, type Ref, useRef, useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { CloudUpload, Minus, Plus } from "lucide-react";
+import { type FormEvent, type ReactNode, type Ref, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { AdminPage } from "@/components/admin/admin-page";
+import { fieldErrors, serverErrorMessage } from "@/components/admin/orders/form-errors";
+import {
+  type CreateOrderInput,
+  createOrder,
+  createOrderSchema,
+  getManualOrderForm,
+  manualPaymentMethods,
+} from "@/functions/orders";
+import { formatRupiah } from "@/lib/format";
+import type { FulfillmentMethod } from "@/lib/orders";
 
 export const Route = createFileRoute("/_auth/dashboard/pesanan/baru")({
   head: () => ({
     meta: [{ title: "Buat pesanan baru · ubeloom" }],
   }),
+  loader: () => getManualOrderForm(),
   component: ManualOrderComponent,
 });
 
-// Sample data until products and batch schedules live in the database.
-const products: { id: string; name: string; price: number }[] = [
-  { id: "ube-pop-classic", name: "Ube Pop · Classic 250 g", price: 49_000 },
-  { id: "ube-pop-ube", name: "Ube Pop · Ube edition 250 g", price: 52_000 },
-  { id: "lumpia-ubi-goreng", name: "Lumpia Ubi Goreng", price: 28_000 },
-  { id: "sparkling-starfruit", name: "Sparkling Starfruit", price: 16_000 },
+const fulfillmentOptions: { value: FulfillmentMethod; label: string }[] = [
+  { value: "pickup", label: "Pickup di toko" },
+  { value: "delivery", label: "Delivery" },
 ];
 
-const fulfillmentOptions = ["Pickup di toko", "Delivery"] as const;
-const scheduleOptions = ["Sabtu 24 Okt · 10.00–15.00", "Minggu 25 Okt · 10.00–15.00"] as const;
-const paymentMethods = ["Transfer bank · BCA", "Transfer bank · Mandiri", "QRIS", "Tunai"] as const;
+const MAX_PROOF_BYTES = 10 * 1024 * 1024;
 
 const cardClassName = "flex flex-col rounded-xl border border-ube-line bg-white p-[18px]";
 const fieldLabelClassName = "text-[10px] font-bold text-plum";
+const fieldErrorClassName = "text-[10px] font-semibold text-[#b42318]";
 const inputClassName =
   "h-[42px] w-full rounded-lg border border-ube-line bg-surface px-[11px] text-xs text-ink outline-none transition-colors focus:border-ube-pop";
 
-const formatRupiah = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
-
 function ManualOrderComponent() {
+  const form = Route.useLoaderData();
+  const router = useRouter();
   const productSelectRef = useRef<HTMLSelectElement>(null);
-  const [name, setName] = useState("Alya Rahmawati");
-  const [phone, setPhone] = useState("08•• •••• 4821");
-  const [fulfillment, setFulfillment] = useState<string>(fulfillmentOptions[0]);
-  const [schedule, setSchedule] = useState("");
-  const [items, setItems] = useState<{ id: string; quantity: number }[]>([
-    { id: "ube-pop-classic", quantity: 2 },
-    { id: "ube-pop-ube", quantity: 1 },
-  ]);
-  const [paymentMethod, setPaymentMethod] = useState<string>(paymentMethods[0]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [fulfillment, setFulfillment] = useState<FulfillmentMethod>("pickup");
+  const [scheduleId, setScheduleId] = useState("");
+  const [address, setAddress] = useState("");
+  const [items, setItems] = useState<{ id: string; quantity: number }[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<string>(manualPaymentMethods[0]);
+  /** Digits typed by the admin; undefined follows the order total. */
+  const [amountInput, setAmountInput] = useState<string>();
   const [proof, setProof] = useState<File>();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const canOrder = form.batch?.isOpen === true;
+  const scheduleOptions =
+    fulfillment === "pickup"
+      ? form.pickupSlots.map(({ id, label, remaining }) => ({
+          value: id,
+          label: `${label}${remaining > 0 ? ` · sisa ${remaining}` : " · penuh"}`,
+        }))
+      : form.deliveryZones.map(({ id, label }) => ({ value: id, label }));
+  const scheduleLabel = scheduleOptions.find(({ value }) => value === scheduleId)?.label;
+  const shippingFee =
+    fulfillment === "delivery"
+      ? (form.deliveryZones.find(({ id }) => id === scheduleId)?.fee ?? 0)
+      : 0;
 
   const lines = items.flatMap(({ id, quantity }) => {
-    const product = products.find((candidate) => candidate.id === id);
+    const product = form.products.find((candidate) => candidate.id === id);
     return product ? [{ ...product, quantity, total: product.price * quantity }] : [];
   });
-  const orderTotal = lines.reduce((sum, { total }) => sum + total, 0);
-  const [amount, setAmount] = useState(formatRupiah(orderTotal));
+  const subtotal = lines.reduce((sum, { total }) => sum + total, 0);
+  const orderTotal = subtotal + shippingFee;
+  const amountDigits = amountInput ?? (orderTotal > 0 ? String(orderTotal) : "");
+  const amount = amountDigits ? Number(amountDigits) : null;
+  const isCash = paymentMethod === "Tunai";
 
-  const addItem = (id: string) =>
+  const changeQuantity = (id: string, delta: number) =>
     setItems((current) =>
       current.some((item) => item.id === id)
-        ? current.map((item) => (item.id === id ? { ...item, quantity: item.quantity + 1 } : item))
-        : [...current, { id, quantity: 1 }],
+        ? current
+            .map((item) => (item.id === id ? { ...item, quantity: item.quantity + delta } : item))
+            .filter(({ quantity }) => quantity > 0)
+        : delta > 0
+          ? [...current, { id, quantity: delta }]
+          : current,
     );
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!form.batch) return;
+    if (proof && proof.size > MAX_PROOF_BYTES) {
+      setErrors({ form: "Bukti transaksi maksimal 10 MB." });
+      return;
+    }
+    const input: CreateOrderInput = {
+      batchId: form.batch.id,
+      customerName: name,
+      customerPhone: phone,
+      method: fulfillment,
+      scheduleId,
+      address: fulfillment === "delivery" ? address : undefined,
+      items: items.map(({ id, quantity }) => ({ productId: id, quantity })),
+      paymentMethod: paymentMethod as CreateOrderInput["paymentMethod"],
+      amountReceived: amount,
+      proofFileName: proof?.name,
+    };
+    const parsed = createOrderSchema.safeParse(input);
+    if (!parsed.success) {
+      const next = fieldErrors(parsed.error);
+      setErrors(next);
+      toast.error(Object.values(next)[0] ?? "Periksa kembali data pesanan.");
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
+    try {
+      const created = await createOrder({ data: input });
+      toast.success(`Pesanan ${created.invoiceNumber} tersimpan.`);
+      await router.navigate({ to: "/dashboard/pesanan", search: { q: created.invoiceNumber } });
+    } catch (error) {
+      const message = serverErrorMessage(error);
+      setErrors({ form: message });
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const paymentNote =
+    amount === null
+      ? {
+          title: "Belum ada pembayaran",
+          body: "Pesanan tersimpan dengan status belum bayar. Kosongkan nominal bila pelanggan belum membayar.",
+        }
+      : isCash
+        ? {
+            title: "Tunai langsung lunas",
+            body: "Pembayaran tunai dicatat disetujui dan pesanan tersimpan sebagai lunas.",
+          }
+        : {
+            title: "Bukti akan ditinjau",
+            body: "Pesanan tersimpan dengan status menunggu verifikasi setelah dikirim.",
+          };
 
   return (
     <AdminPage className="bg-surface font-wordmark">
@@ -69,9 +157,20 @@ function ManualOrderComponent() {
         </p>
       </div>
 
+      {!canOrder && (
+        <p
+          role="status"
+          className="rounded-[10px] bg-[#fff1d3] px-3.5 py-3 text-xs font-bold text-[#855814]"
+        >
+          {form.batch
+            ? `Batch ${form.batch.name} sedang tidak dibuka. Buka batch terlebih dahulu untuk mencatat pesanan.`
+            : "Belum ada batch. Buat dan buka batch terlebih dahulu untuk mencatat pesanan."}
+        </p>
+      )}
+
       <form
-        // Saving waits for the orders API; the browser still checks required fields.
-        onSubmit={(event) => event.preventDefault()}
+        noValidate
+        onSubmit={submit}
         className="grid items-start gap-4 xl:grid-cols-[640fr_354fr]"
       >
         <div className="flex min-w-0 flex-col gap-3.5">
@@ -84,9 +183,12 @@ function ManualOrderComponent() {
                   required
                   autoComplete="off"
                   value={name}
+                  placeholder="Nama lengkap"
+                  aria-invalid={Boolean(errors.customerName)}
                   onChange={(event) => setName(event.target.value)}
                   className={inputClassName}
                 />
+                <FieldError message={errors.customerName} />
               </label>
               <label className="flex flex-col gap-[5px]">
                 <span className={fieldLabelClassName}>Nomor WhatsApp</span>
@@ -96,9 +198,12 @@ function ManualOrderComponent() {
                   inputMode="tel"
                   autoComplete="off"
                   value={phone}
+                  placeholder="0812 3456 7890"
+                  aria-invalid={Boolean(errors.customerPhone)}
                   onChange={(event) => setPhone(event.target.value)}
                   className={inputClassName}
                 />
+                <FieldError message={errors.customerPhone} />
               </label>
             </div>
             <p id="fulfillment-label" className={fieldLabelClassName}>
@@ -113,21 +218,43 @@ function ManualOrderComponent() {
                 label="Metode pemenuhan"
                 value={fulfillment}
                 options={fulfillmentOptions}
-                onChange={setFulfillment}
+                onChange={(value) => {
+                  setFulfillment(value as FulfillmentMethod);
+                  setScheduleId("");
+                }}
               >
-                {fulfillment}
+                {fulfillmentOptions.find(({ value }) => value === fulfillment)?.label}
               </OverlaySelect>
               <span aria-hidden>·</span>
               <OverlaySelect
                 label="Jadwal"
-                value={schedule}
+                value={scheduleId}
                 options={scheduleOptions}
-                placeholder="Pilih jadwal"
-                onChange={setSchedule}
+                placeholder={scheduleOptions.length > 0 ? "Pilih jadwal" : "Belum ada jadwal"}
+                onChange={setScheduleId}
               >
-                {`${schedule || "Pilih jadwal"}  ▾`}
+                {`${scheduleLabel ?? "Pilih jadwal"}  ▾`}
               </OverlaySelect>
             </div>
+            <FieldError message={errors.method ?? errors.scheduleId} />
+            {fulfillment === "pickup" && form.batch?.pickupLocation && (
+              <p className="text-[10px] text-plum">Lokasi pickup: {form.batch.pickupLocation}</p>
+            )}
+            {fulfillment === "delivery" && (
+              <label className="flex flex-col gap-[5px]">
+                <span className={fieldLabelClassName}>Alamat pengiriman</span>
+                <textarea
+                  required
+                  rows={2}
+                  value={address}
+                  placeholder="Jalan, nomor rumah, patokan"
+                  aria-invalid={Boolean(errors.address)}
+                  onChange={(event) => setAddress(event.target.value)}
+                  className={`${inputClassName} h-auto resize-none py-2.5`}
+                />
+                <FieldError message={errors.address} />
+              </label>
+            )}
           </section>
 
           <section aria-labelledby="items-heading" className={`${cardClassName} gap-3`}>
@@ -135,12 +262,14 @@ function ManualOrderComponent() {
             <OverlaySelect
               label="Pilih produk & varian"
               value=""
-              options={products.map(({ id, name: productName }) => ({
+              options={form.products.map(({ id, name: productName, price, remaining }) => ({
                 value: id,
-                label: productName,
+                label: `${productName} · ${formatRupiah(price)}${remaining === null ? "" : ` · sisa ${remaining}`}`,
               }))}
-              placeholder="Pilih produk & varian"
-              onChange={addItem}
+              placeholder={
+                form.products.length > 0 ? "Pilih produk & varian" : "Belum ada produk di batch"
+              }
+              onChange={(id) => changeQuantity(id, 1)}
               selectRef={productSelectRef}
               className={`${inputClassName} flex items-center text-plum focus-within:border-ube-pop`}
             >
@@ -148,13 +277,28 @@ function ManualOrderComponent() {
             </OverlaySelect>
             {lines.length > 0 && (
               <ul aria-label="Item dipilih" className="flex flex-col">
-                {lines.map(({ id, name: productName, quantity, total }) => (
+                {lines.map(({ id, name: productName, quantity, total, remaining }) => (
                   <li
                     key={id}
                     className="flex h-[52px] items-center justify-between gap-3 text-[11px]"
                   >
                     <span className="min-w-0 flex-1 font-bold text-ink">{productName}</span>
-                    <span className="text-plum">× {quantity}</span>
+                    <span className="flex items-center gap-2 text-plum">
+                      <QuantityButton
+                        label={`Kurangi ${productName}`}
+                        onClick={() => changeQuantity(id, -1)}
+                      >
+                        <Minus aria-hidden className="size-3" />
+                      </QuantityButton>
+                      × {quantity}
+                      <QuantityButton
+                        label={`Tambah ${productName}`}
+                        disabled={remaining !== null && quantity >= remaining}
+                        onClick={() => changeQuantity(id, 1)}
+                      >
+                        <Plus aria-hidden className="size-3" />
+                      </QuantityButton>
+                    </span>
                     <span className="flex-1 text-right font-bold text-ink">
                       {formatRupiah(total)}
                     </span>
@@ -162,6 +306,7 @@ function ManualOrderComponent() {
                 ))}
               </ul>
             )}
+            <FieldError message={errors.items} />
             <button
               type="button"
               onClick={() => productSelectRef.current?.focus()}
@@ -170,7 +315,14 @@ function ManualOrderComponent() {
               {"＋  Tambah item lain"}
             </button>
             <div className="flex items-center justify-between gap-4 rounded-[9px] bg-vanilla px-3.5 py-3">
-              <p className="text-xs font-bold text-ink">Total pesanan</p>
+              <div className="flex flex-col gap-0.5">
+                <p className="text-xs font-bold text-ink">Total pesanan</p>
+                {shippingFee > 0 && (
+                  <p className="text-[10px] text-plum">
+                    {formatRupiah(subtotal)} + ongkir {formatRupiah(shippingFee)}
+                  </p>
+                )}
+              </div>
               <p className="text-[17px] font-extrabold text-deep-ube">{formatRupiah(orderTotal)}</p>
             </div>
           </section>
@@ -183,7 +335,7 @@ function ManualOrderComponent() {
             <OverlaySelect
               label="Metode pembayaran"
               value={paymentMethod}
-              options={paymentMethods}
+              options={manualPaymentMethods}
               onChange={setPaymentMethod}
               className={`${inputClassName} flex items-center focus-within:border-ube-pop`}
             >
@@ -194,12 +346,14 @@ function ManualOrderComponent() {
             </label>
             <input
               id="amount-received"
-              required
               inputMode="numeric"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
+              value={amount === null ? "" : formatRupiah(amount)}
+              placeholder="Kosongkan jika belum dibayar"
+              aria-invalid={Boolean(errors.amountReceived)}
+              onChange={(event) => setAmountInput(event.target.value.replace(/\D/g, ""))}
               className={`${inputClassName} font-bold`}
             />
+            <FieldError message={errors.amountReceived} />
             <p id="proof-label" className={fieldLabelClassName}>
               Bukti transaksi
             </p>
@@ -220,17 +374,21 @@ function ManualOrderComponent() {
           </section>
 
           <div className="flex flex-col gap-[5px] rounded-[10px] bg-vanilla p-3.5">
-            <p className="text-xs font-extrabold text-deep-ube">Bukti akan ditinjau</p>
-            <p className="text-[10px] text-plum">
-              Pesanan tersimpan dengan status menunggu verifikasi setelah dikirim.
-            </p>
+            <p className="text-xs font-extrabold text-deep-ube">{paymentNote.title}</p>
+            <p className="text-[10px] text-plum">{paymentNote.body}</p>
           </div>
 
+          {errors.form && (
+            <p role="alert" className={fieldErrorClassName}>
+              {errors.form}
+            </p>
+          )}
           <button
             type="submit"
-            className="h-12 rounded-[10px] bg-deep-ube text-[13px] font-extrabold whitespace-pre text-white transition-colors hover:bg-ube-pop"
+            disabled={!canOrder || submitting}
+            className="h-12 rounded-[10px] bg-deep-ube text-[13px] font-extrabold whitespace-pre text-white transition-colors hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {"Simpan & kirim pesanan  →"}
+            {submitting ? "Menyimpan…" : "Simpan & kirim pesanan  →"}
           </button>
           <p className="text-[10px] text-plum">Pastikan data pelanggan dan nominal sesuai bukti.</p>
         </div>
@@ -244,6 +402,35 @@ function SectionHeading({ id, children }: { id: string; children: ReactNode }) {
     <h2 id={id} className="text-[15px]/[1.3] font-extrabold whitespace-pre text-ink">
       {children}
     </h2>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <span className={fieldErrorClassName}>{message}</span>;
+}
+
+function QuantityButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex size-6 items-center justify-center rounded-full border border-ube-line text-deep-ube transition-colors hover:bg-vanilla disabled:opacity-40"
+    >
+      {children}
+    </button>
   );
 }
 

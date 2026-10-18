@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ReactLenis } from "lenis/react";
 import { CalendarDays, MapPin, Truck, type LucideIcon } from "lucide-react";
 
-import ProductCard from "@/components/storefront/product-card";
-import { products } from "@/components/storefront/products";
+import { batchCopy } from "@/components/storefront/batch-copy";
+import ProductCard, { type Product } from "@/components/storefront/product-card";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
+import { getStorefront } from "@/functions/products";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -19,30 +20,35 @@ export const Route = createFileRoute("/")({
     ],
     links: [{ rel: "preload", as: "image", href: "/images/hero-lumpia.webp" }],
   }),
+  loader: () => getStorefront(),
   component: HomeComponent,
 });
 
-const batchDetails: { icon: LucideIcon; label: string; value: string }[] = [
+type BatchCopy = ReturnType<typeof batchCopy>;
+
+const batchDetails = (batch: BatchCopy): { icon: LucideIcon; label: string; value: string }[] => [
   {
     icon: CalendarDays,
-    label: "Preorder masih dibuka · hingga",
-    value: "24 Okt 2026 · 20.00 WIB",
+    label: batch.open ? "Preorder masih dibuka · hingga" : "Preorder ditutup · sejak",
+    value: batch.closesAt,
   },
-  { icon: MapPin, label: "Pickup tersedia", value: "26 Okt · Kampus ubeloom" },
+  { icon: MapPin, label: "Pickup tersedia", value: batch.pickupSummary },
   { icon: Truck, label: "Delivery tersedia", value: "Alamat & biaya saat checkout" },
 ];
 
-const fulfillmentOptions: {
+const fulfillmentOptions = (
+  batch: BatchCopy,
+): {
   icon: LucideIcon;
   title: { mobile: string; desktop: string };
   detail: { mobile: string; desktop: string };
-}[] = [
+}[] => [
   {
     icon: MapPin,
-    title: { mobile: "Pickup di Kampus ubeloom", desktop: "Ambil di kampus" },
+    title: { mobile: `Pickup di ${batch.pickupLocation}`, desktop: "Ambil di kampus" },
     detail: {
-      mobile: "26 Okt · pilih slot pengambilan",
-      desktop: "26 Okt · pilih slot saat checkout",
+      mobile: `${batch.pickupDate} · pilih slot pengambilan`,
+      desktop: `${batch.pickupDate} · pilih slot saat checkout`,
     },
   },
   {
@@ -56,30 +62,37 @@ const fulfillmentOptions: {
 ];
 
 function HomeComponent() {
+  const { batch, products } = Route.useLoaderData();
+  const copy = batchCopy(batch);
+
   return (
     <div className="flex min-h-svh flex-col bg-white font-body text-ink">
       {/* Lenis honours each section's scroll-margin-top when following #anchor links. */}
       <ReactLenis root options={{ anchors: true }} />
       <StorefrontNav />
       <main className="flex flex-1 flex-col">
-        <Hero />
-        <BatchDetails />
-        <Catalog />
-        <Fulfillment />
+        <Hero batch={copy} />
+        <BatchDetails batch={copy} />
+        <Catalog products={products} />
+        <Fulfillment batch={copy} />
       </main>
       <StorefrontFooter />
     </div>
   );
 }
 
-function Hero() {
+function Hero({ batch }: { batch: BatchCopy }) {
   return (
     <section className="mx-auto grid w-full max-w-[1280px] gap-[13px] px-5 py-[25px] lg:min-h-[400px] lg:grid-cols-[minmax(0,560px)_1fr] lg:items-center lg:gap-[42px] lg:px-16 lg:pt-[42px] lg:pb-10">
       <div className="flex flex-col items-start gap-[13px] lg:gap-[18px]">
         <p className="flex items-center gap-[7px] rounded-full bg-vanilla px-[11px] py-[7px] font-data text-[10px] font-bold text-deep-ube lg:gap-2 lg:px-3.5 lg:py-2 lg:text-[11px]">
           <span aria-hidden className="size-[7px] rounded-full bg-ube-pop lg:size-2" />
-          <span className="lg:hidden">BATCH 01 · MASIH BISA PREORDER</span>
-          <span className="hidden lg:inline">BATCH 01 · PREORDER MASIH DIBUKA</span>
+          <span className="lg:hidden">
+            BATCH {batch.number} · {batch.open ? "MASIH BISA PREORDER" : "PREORDER DITUTUP"}
+          </span>
+          <span className="hidden lg:inline">
+            BATCH {batch.number} · {batch.open ? "PREORDER MASIH DIBUKA" : "PREORDER DITUTUP"}
+          </span>
         </p>
         <h1 className="font-display text-[34px]/[36px] font-bold text-deep-ube lg:text-[46px]/[49px]">
           <span className="lg:hidden">Preorder buka. Jeda manis menunggu.</span>
@@ -101,7 +114,7 @@ function Hero() {
             className="rounded-full bg-deep-ube px-[22px] py-[13px] text-[15px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
           >
             <span className="lg:hidden">Preorder sekarang →</span>
-            <span className="hidden lg:inline">Preorder batch 01 →</span>
+            <span className="hidden lg:inline">Preorder batch {batch.number} →</span>
           </a>
           <a
             href="#menu"
@@ -123,7 +136,7 @@ function Hero() {
   );
 }
 
-function BatchDetails() {
+function BatchDetails({ batch }: { batch: BatchCopy }) {
   return (
     <section
       id="cara-pesan"
@@ -133,16 +146,16 @@ function BatchDetails() {
       <ul className="flex flex-col gap-3 px-5 py-[17px] lg:hidden">
         <li className="flex items-center gap-2.5 text-xs font-semibold text-deep-ube">
           <CalendarDays aria-hidden className="size-[18px] shrink-0" />
-          Masih buka hingga 24 Okt · 20.00 WIB
+          {batch.open ? "Masih buka hingga" : "Preorder ditutup ·"} {batch.closesAtShort}
         </li>
         <li className="flex items-center gap-2.5 text-xs font-semibold text-deep-ube">
           <MapPin aria-hidden className="size-[18px] shrink-0" />
-          Pickup 26 Okt · delivery juga tersedia
+          Pickup {batch.pickupDate} · delivery juga tersedia
         </li>
       </ul>
 
       <ul className="mx-auto hidden h-[81px] max-w-[1280px] items-center justify-between px-16 lg:flex">
-        {batchDetails.map(({ icon: Icon, label, value }) => (
+        {batchDetails(batch).map(({ icon: Icon, label, value }) => (
           <li key={label} className="flex items-center gap-3">
             <Icon aria-hidden className="size-[21px] shrink-0 text-deep-ube" />
             <div className="flex flex-col gap-[3px]">
@@ -156,7 +169,7 @@ function BatchDetails() {
   );
 }
 
-function Catalog() {
+function Catalog({ products }: { products: Product[] }) {
   return (
     <section
       id="menu"
@@ -180,14 +193,14 @@ function Catalog() {
 
       <div className="grid gap-3.5 lg:grid-cols-2 lg:gap-5">
         {products.map((product) => (
-          <ProductCard key={product.name} product={product} />
+          <ProductCard key={product.slug} product={product} />
         ))}
       </div>
     </section>
   );
 }
 
-function Fulfillment() {
+function Fulfillment({ batch }: { batch: BatchCopy }) {
   return (
     <section id="pickup-delivery" className="scroll-mt-4 lg:border-t lg:border-ube-line">
       <div className="mx-auto flex max-w-[1280px] flex-col gap-3 px-5 py-[22px] lg:flex-row lg:items-center lg:gap-9 lg:px-16 lg:py-7">
@@ -198,17 +211,18 @@ function Fulfillment() {
           </h2>
           <p className="text-xs/[17px] text-plum lg:text-[13px]/5">
             <span className="lg:hidden">
-              Tentukan pilihanmu saat checkout. Preorder batch 01 masih dibuka.
+              Tentukan pilihanmu saat checkout. Preorder batch {batch.number}{" "}
+              {batch.open ? "masih dibuka" : "sudah ditutup"}.
             </span>
             <span className="hidden lg:inline">
-              Pilih pickup di Kampus ubeloom atau delivery ke alamatmu saat checkout. Bayar maks. 24
-              jam setelah pesan.
+              Pilih pickup di {batch.pickupLocation} atau delivery ke alamatmu saat checkout. Bayar
+              maks. 24 jam setelah pesan.
             </span>
           </p>
         </div>
 
         <ul className="flex flex-col gap-3 lg:w-[650px] lg:shrink lg:flex-row">
-          {fulfillmentOptions.map(({ icon: Icon, title, detail }) => (
+          {fulfillmentOptions(batch).map(({ icon: Icon, title, detail }) => (
             <li
               key={title.desktop}
               className="flex items-center gap-3 rounded-xl border border-ube-line bg-vanilla px-[15px] py-[13px] lg:flex-1 lg:flex-col lg:items-start lg:gap-[9px] lg:rounded-[14px] lg:px-[18px] lg:py-4"

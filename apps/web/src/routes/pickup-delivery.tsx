@@ -2,8 +2,10 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { ReactLenis } from "lenis/react";
 import { MapPin, Truck, type LucideIcon } from "lucide-react";
 
+import { batchCopy } from "@/components/storefront/batch-copy";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
+import { getStorefrontBatch } from "@/functions/products";
 
 export const Route = createFileRoute("/pickup-delivery")({
   head: () => ({
@@ -16,22 +18,27 @@ export const Route = createFileRoute("/pickup-delivery")({
       },
     ],
   }),
+  loader: () => getStorefrontBatch(),
   component: PickupDeliveryComponent,
 });
 
-const fulfillmentMethods: {
+type BatchCopy = ReturnType<typeof batchCopy>;
+
+const fulfillmentMethods = (
+  batch: BatchCopy,
+): {
   icon: LucideIcon;
   title: string;
   subtitle: string;
   details: { label: string; value: string }[];
-}[] = [
+}[] => [
   {
     icon: MapPin,
     title: "Pickup di kampus",
     subtitle: "Datang sesuai slot yang kamu pilih.",
     details: [
-      { label: "LOKASI", value: "Kampus ubeloom · detail titik temu di invoice" },
-      { label: "JADWAL", value: "26 Okt 2026 · slot aktif dipilih saat checkout" },
+      { label: "LOKASI", value: `${batch.pickupLocation} · detail titik temu di invoice` },
+      { label: "JADWAL", value: `${batch.pickupDateLong} · slot aktif dipilih saat checkout` },
       { label: "BIAYA", value: "Tidak ada ongkir" },
       { label: "SAAT SERAH-TERIMA", value: "Tunjukkan invoice; tim mencatat pesanan selesai" },
     ],
@@ -60,27 +67,31 @@ const checkoutSteps: { title: string; detail: string }[] = [
 ];
 
 function PickupDeliveryComponent() {
+  const batch = batchCopy(Route.useLoaderData());
+
   return (
     <div className="flex min-h-svh flex-col bg-white font-body text-ink">
       <ReactLenis root />
       <StorefrontNav />
       <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 px-5 pt-7 pb-8 lg:px-16">
-        <FulfillmentHero />
-        <FulfillmentChoices />
+        <FulfillmentHero batch={batch} />
+        <FulfillmentChoices batch={batch} />
         <CheckoutTiming />
-        <FulfillmentNotes />
+        <FulfillmentNotes batch={batch} />
       </main>
       <StorefrontFooter />
     </div>
   );
 }
 
-function FulfillmentHero() {
+function FulfillmentHero({ batch }: { batch: BatchCopy }) {
   return (
     <section className="flex flex-col gap-6 lg:min-h-[238px] lg:flex-row lg:items-center lg:gap-9">
       <div className="flex flex-col items-start gap-[13px] lg:flex-1">
         <p className="rounded-full bg-vanilla px-3 py-[7px] font-data text-[10px] font-bold text-deep-ube">
-          PREORDER MASIH DIBUKA · HINGGA 24 OKT, 20.00 WIB
+          {batch.open
+            ? `PREORDER MASIH DIBUKA · HINGGA ${batch.closesAtShort.replace(" · ", ", ").toUpperCase()}`
+            : "PREORDER SEDANG DITUTUP"}
         </p>
         <h1 className="font-display text-[34px]/[1.1] font-bold text-deep-ube lg:text-[41px]/[1.07]">
           Ambil sendiri, atau kami antar.
@@ -102,7 +113,7 @@ function FulfillmentHero() {
   );
 }
 
-function FulfillmentChoices() {
+function FulfillmentChoices({ batch }: { batch: BatchCopy }) {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-[5px]">
@@ -113,7 +124,7 @@ function FulfillmentChoices() {
       </div>
 
       <div className="grid gap-[18px] lg:grid-cols-2">
-        {fulfillmentMethods.map(({ icon: Icon, title, subtitle, details }) => (
+        {fulfillmentMethods(batch).map(({ icon: Icon, title, subtitle, details }) => (
           <article
             key={title}
             className="flex flex-col gap-[13px] rounded-2xl border border-ube-line bg-vanilla p-[21px]"
@@ -159,7 +170,7 @@ function CheckoutTiming() {
   );
 }
 
-function FulfillmentNotes() {
+function FulfillmentNotes({ batch }: { batch: BatchCopy }) {
   return (
     <section className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-[26px]">
       <div className="flex flex-col gap-2 lg:flex-1">
@@ -178,7 +189,8 @@ function FulfillmentNotes() {
           Siap pilih caramu?
         </h2>
         <p className="text-[11px] text-[#f6dcea]">
-          Batch masih dibuka. Pilihan metode ada saat checkout.
+          {batch.open ? "Batch masih dibuka." : "Batch sedang ditutup."} Pilihan metode ada saat
+          checkout.
         </p>
         <Link
           to="/menu"

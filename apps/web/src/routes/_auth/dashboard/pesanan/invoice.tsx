@@ -1,59 +1,128 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { ChevronDown, Download, FileCheck2 } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
+import { toast } from "sonner";
+import { z } from "zod";
 
 import { AdminPage } from "@/components/admin/admin-page";
+import { fieldErrors, serverErrorMessage } from "@/components/admin/orders/form-errors";
+import {
+  type InvoiceForm,
+  createInvoice,
+  createInvoiceSchema,
+  getInvoiceForm,
+} from "@/functions/invoices";
+import { formatLongDate, formatRupiah, fromDateInputValue } from "@/lib/format";
 
 export const Route = createFileRoute("/_auth/dashboard/pesanan/invoice")({
   head: () => ({
     meta: [{ title: "Buat invoice · ubeloom" }],
   }),
-  component: InvoiceComponent,
+  validateSearch: z.object({ orderId: z.string().min(1).optional().catch(undefined) }),
+  loaderDeps: ({ search }) => ({ orderId: search.orderId }),
+  loader: ({ deps }) => getInvoiceForm({ data: deps }),
+  component: InvoiceRoute,
 });
 
-// Sample data until orders and invoices live in the database.
-const orders: { id: string; product: string; quantity: number; total: number }[] = [
-  { id: "ORD-10284", product: "Ube Cloud Cake", quantity: 1, total: 285_000 },
-  { id: "ORD-10279", product: "Lumpia Ubi Goreng", quantity: 2, total: 56_000 },
-  { id: "ORD-10291", product: "Sparkling Starfruit", quantity: 3, total: 48_000 },
-];
+type InvoiceOrder = InvoiceForm["orders"][number];
 
-const initialInvoice = {
-  number: "INV-2026-0048",
-  customerName: "Alya Maharani",
-  customerEmail: "alya.maharani@email.com",
-  issuedOn: "2026-10-24",
-  dueOn: "2026-10-31",
-  orderId: orders[0].id,
-  memo: "Terima kasih telah memilih Ube Pop!",
+type InvoiceDraft = {
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  issuedOn: string;
+  dueOn: string;
+  memo: string;
 };
 
-type InvoiceDraft = typeof initialInvoice;
-
-const dateFormatter = new Intl.DateTimeFormat("id-ID", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
+const DEFAULT_MEMO = "Terima kasih telah memilih Ube Pop!";
 
 /** Formats a `yyyy-mm-dd` input value as "24 Oktober 2026". */
 function formatDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return "—";
-  return dateFormatter.format(new Date(year, month - 1, day));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "—";
+  const date = fromDateInputValue(value);
+  return Number.isNaN(date.getTime()) ? "—" : formatLongDate(date);
 }
-
-const formatRupiah = (amount: number) => `Rp ${amount.toLocaleString("id-ID")}`;
 
 const fieldClassName =
   "h-10 w-full rounded-[7px] border border-ube-line bg-surface px-3 text-[11px] font-semibold text-ink outline-none focus:border-ube-pop";
+const fieldErrorClassName = "text-[10px] font-semibold text-[#b42318]";
 
-function InvoiceComponent() {
-  const [invoice, setInvoice] = useState<InvoiceDraft>(initialInvoice);
-  const order = orders.find(({ id }) => id === invoice.orderId) ?? orders[0];
+function InvoiceRoute() {
+  const form = Route.useLoaderData();
+  // Remount when the preselected order changes so the draft re-prefills.
+  return <InvoiceComponent key={form.selectedOrderId ?? "none"} form={form} />;
+}
 
-  const update = (field: keyof InvoiceDraft) => (value: string) =>
-    setInvoice((current) => ({ ...current, [field]: value }));
+function InvoiceComponent({ form }: { form: InvoiceForm }) {
+  const router = useRouter();
+  const initialOrder = form.orders.find(({ id }) => id === form.selectedOrderId);
+  const [invoice, setInvoice] = useState<InvoiceDraft>({
+    orderId: initialOrder?.id ?? "",
+    customerName: initialOrder?.customerName ?? "",
+    customerEmail: initialOrder?.customerEmail ?? "",
+    issuedOn: form.defaults.issuedOn,
+    dueOn: form.defaults.dueOn,
+    memo: DEFAULT_MEMO,
+  });
+  const [issuedNumber, setIssuedNumber] = useState<string>();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [printRequested, setPrintRequested] = useState(false);
+  const order = form.orders.find(({ id }) => id === invoice.orderId);
+
+  // Print after the issued number has rendered into the preview.
+  useEffect(() => {
+    if (!printRequested) return;
+    setPrintRequested(false);
+    window.print();
+  }, [printRequested]);
+
+  const update = (field: keyof InvoiceDraft) => (value: string) => {
+    setIssuedNumber(undefined);
+    setInvoice((current) => {
+      if (field !== "orderId") return { ...current, [field]: value };
+      const next = form.orders.find(({ id }) => id === value);
+      return {
+        ...current,
+        orderId: value,
+        customerName: next?.customerName ?? current.customerName,
+        customerEmail: next?.customerEmail ?? current.customerEmail,
+      };
+    });
+  };
+
+  const publish = async () => {
+    if (issuedNumber) {
+      setPrintRequested(true);
+      return;
+    }
+    const parsed = createInvoiceSchema.safeParse(invoice);
+    if (!parsed.success) {
+      const next = fieldErrors(parsed.error);
+      setErrors(next);
+      toast.error(Object.values(next)[0] ?? "Periksa kembali detail invoice.");
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
+    try {
+      const created = await createInvoice({ data: invoice });
+      setIssuedNumber(created.number);
+      toast.success(`Invoice ${created.number} diterbitkan.`);
+      setPrintRequested(true);
+      // Refresh the suggested next number for the following draft.
+      void router.invalidate();
+    } catch (error) {
+      const message = serverErrorMessage(error);
+      setErrors({ form: message });
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const number = issuedNumber ?? form.nextNumber;
 
   return (
     <AdminPage className="bg-surface font-wordmark print:p-0">
@@ -71,7 +140,11 @@ function InvoiceComponent() {
         <div className="flex flex-col gap-[18px] xl:min-h-[720px] xl:flex-row">
           <form
             aria-labelledby="invoice-form-title"
-            onSubmit={(event) => event.preventDefault()}
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void publish();
+            }}
             className="flex flex-col gap-[17px] rounded-xl border border-ube-line bg-white p-[22px] xl:w-[490px] xl:shrink-0 print:hidden"
           >
             <h2 id="invoice-form-title" className="text-[17px] font-extrabold text-ink">
@@ -80,12 +153,22 @@ function InvoiceComponent() {
             <p className="text-[11px] text-plum">
               Informasi ini akan tampil pada dokumen pelanggan.
             </p>
-            <TextField label="Nomor invoice" value={invoice.number} onChange={update("number")} />
+            <Field
+              label="Nomor invoice"
+              hint={
+                issuedNumber ? "Sudah diterbitkan." : "Nomor final diberikan otomatis saat terbit."
+              }
+            >
+              {(id) => (
+                <input id={id} readOnly value={number} className={`${fieldClassName} text-plum`} />
+              )}
+            </Field>
             <TextField
               label="Nama pelanggan"
               value={invoice.customerName}
               onChange={update("customerName")}
               autoComplete="name"
+              error={errors.customerName}
             />
             <TextField
               label="Email pelanggan"
@@ -93,20 +176,23 @@ function InvoiceComponent() {
               value={invoice.customerEmail}
               onChange={update("customerEmail")}
               autoComplete="email"
+              error={errors.customerEmail}
             />
             <TextField
               label="Tanggal terbit"
               type="date"
               value={invoice.issuedOn}
               onChange={update("issuedOn")}
+              error={errors.issuedOn}
             />
             <TextField
               label="Jatuh tempo"
               type="date"
               value={invoice.dueOn}
               onChange={update("dueOn")}
+              error={errors.dueOn}
             />
-            <Field label="Pesanan terkait">
+            <Field label="Pesanan terkait" error={errors.orderId}>
               {(id) => (
                 <span className="relative flex">
                   <select
@@ -115,9 +201,14 @@ function InvoiceComponent() {
                     onChange={(event) => update("orderId")(event.target.value)}
                     className={`${fieldClassName} cursor-pointer appearance-none pr-8`}
                   >
-                    {orders.map(({ id: orderId, product }) => (
+                    {form.orders.length === 0 && (
+                      <option value="" disabled>
+                        Belum ada pesanan
+                      </option>
+                    )}
+                    {form.orders.map(({ id: orderId, invoiceNumber, customerName }) => (
                       <option key={orderId} value={orderId}>
-                        {orderId} · {product}
+                        {invoiceNumber} · {customerName}
                       </option>
                     ))}
                   </select>
@@ -128,7 +219,7 @@ function InvoiceComponent() {
                 </span>
               )}
             </Field>
-            <Field label="Catatan">
+            <Field label="Catatan" error={errors.memo}>
               {(id) => (
                 <textarea
                   id={id}
@@ -154,17 +245,26 @@ function InvoiceComponent() {
               <p className="text-[10px] whitespace-pre text-plum">{"A4  ·  1 halaman"}</p>
             </div>
 
-            <InvoicePaper invoice={invoice} order={order} />
+            <InvoicePaper
+              invoice={invoice}
+              number={issuedNumber ?? `${form.nextNumber} (DRAF)`}
+              order={order}
+            />
 
             {/* No PDF service yet: the browser print dialog saves the page as PDF. */}
             <div className="flex flex-wrap items-center gap-2.5 print:hidden">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex items-center gap-2 rounded-lg bg-deep-ube px-[17px] py-[13px] text-[11px] font-extrabold text-vanilla transition-colors hover:bg-ube-pop"
+                disabled={submitting || !order}
+                onClick={() => void publish()}
+                className="flex items-center gap-2 rounded-lg bg-deep-ube px-[17px] py-[13px] text-[11px] font-extrabold text-vanilla transition-colors hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileCheck2 aria-hidden className="size-[15px]" />
-                Terbitkan &amp; unduh PDF
+                {submitting
+                  ? "Menerbitkan…"
+                  : issuedNumber
+                    ? "Unduh PDF lagi"
+                    : "Terbitkan & unduh PDF"}
               </button>
               <button
                 type="button"
@@ -175,6 +275,11 @@ function InvoiceComponent() {
                 Unduh draf
               </button>
             </div>
+            {errors.form && (
+              <p role="alert" className={`${fieldErrorClassName} print:hidden`}>
+                {errors.form}
+              </p>
+            )}
             <p className="text-[10px] text-plum print:hidden">
               PDF akan dibuat setelah detail invoice dikonfirmasi. Penerbitan tercatat di aktivitas
               admin.
@@ -188,36 +293,67 @@ function InvoiceComponent() {
 
 function InvoicePaper({
   invoice,
+  number,
   order,
 }: {
   invoice: InvoiceDraft;
-  order: (typeof orders)[number];
+  number: string;
+  order?: InvoiceOrder;
 }) {
   return (
     <article className="flex min-h-[500px] flex-col gap-[15px] rounded-[5px] bg-white p-[26px] text-ink shadow-[0_4px_16px_#321d2d18] print:shadow-none">
       <p className="font-display text-[19px] font-bold text-deep-ube">UBE POP</p>
       <p className="text-2xl font-extrabold">INVOICE</p>
       <p className="text-[10px] font-bold break-all whitespace-pre-wrap text-plum">
-        {`${invoice.number || "—"}     ·     ${formatDate(invoice.issuedOn).toUpperCase()}`}
+        {`${number}     ·     ${formatDate(invoice.issuedOn).toUpperCase()}`}
       </p>
       <hr className="border-ube-line" />
       <p className="text-[11px]/[1.6] break-all whitespace-pre-line">
         {`DITAGIHKAN KEPADA\n${invoice.customerName || "—"}\n${invoice.customerEmail || "—"}`}
       </p>
       <p className="text-[11px]/[1.6] whitespace-pre-wrap">
-        {`PESANAN  ${order.id}\n${order.product}  ·  ${order.quantity} pesanan`}
+        {`PESANAN  ${order?.invoiceNumber ?? "—"}`}
       </p>
+      {order && (
+        <ul className="flex flex-col gap-1 text-[11px]/[1.6]">
+          {order.items.map(({ productName, quantity, lineTotal }) => (
+            <li key={productName} className="flex justify-between gap-3">
+              <span>
+                {productName} · {quantity} × {formatRupiah(lineTotal / quantity)}
+              </span>
+              <span className="font-bold">{formatRupiah(lineTotal)}</span>
+            </li>
+          ))}
+          {order.shippingFee > 0 && (
+            <li className="flex justify-between gap-3">
+              <span>Ongkir</span>
+              <span className="font-bold">{formatRupiah(order.shippingFee)}</span>
+            </li>
+          )}
+        </ul>
+      )}
       <hr className="border-ube-line" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[11px] font-extrabold">TOTAL TAGIHAN</p>
-        <p className="text-xl font-extrabold text-deep-ube">{formatRupiah(order.total)}</p>
+        <p className="text-xl font-extrabold text-deep-ube">{formatRupiah(order?.total ?? 0)}</p>
       </div>
       <p className="text-[10px] text-plum">Jatuh tempo: {formatDate(invoice.dueOn)}</p>
+      {invoice.memo && <p className="text-[10px] whitespace-pre-line text-plum">{invoice.memo}</p>}
     </article>
   );
 }
 
-function Field({ label, children }: { label: string; children: (id: string) => ReactNode }) {
+function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  children: (id: string) => ReactNode;
+}) {
   const id = useId();
 
   return (
@@ -226,6 +362,8 @@ function Field({ label, children }: { label: string; children: (id: string) => R
         {label}
       </label>
       {children(id)}
+      {hint && <p className="text-[10px] text-plum">{hint}</p>}
+      {error && <p className={fieldErrorClassName}>{error}</p>}
     </div>
   );
 }
@@ -234,23 +372,26 @@ function TextField({
   label,
   value,
   onChange,
+  error,
   type = "text",
   autoComplete = "off",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  error?: string;
   type?: "text" | "email" | "date";
   autoComplete?: string;
 }) {
   return (
-    <Field label={label}>
+    <Field label={label} error={error}>
       {(id) => (
         <input
           id={id}
           type={type}
           value={value}
           autoComplete={autoComplete}
+          aria-invalid={Boolean(error)}
           onChange={(event) => onChange(event.target.value)}
           className={fieldClassName}
         />

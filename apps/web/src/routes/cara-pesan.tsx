@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ReactLenis } from "lenis/react";
 import { PackageCheck, ScanLine } from "lucide-react";
 
+import { batchCopy } from "@/components/storefront/batch-copy";
 import PreorderInvitation from "@/components/storefront/preorder-invitation";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
+import { getStorefrontBatch } from "@/functions/products";
 
 export const Route = createFileRoute("/cara-pesan")({
   head: () => ({
@@ -17,8 +19,11 @@ export const Route = createFileRoute("/cara-pesan")({
       },
     ],
   }),
+  loader: () => getStorefrontBatch(),
   component: CaraPesanComponent,
 });
+
+type BatchCopy = ReturnType<typeof batchCopy>;
 
 const flowSummary = ["Pilih menu", "Pickup / delivery", "Invoice", "QRIS & bukti", "Diproses"];
 
@@ -53,6 +58,8 @@ const steps: { title: string; description: string }[] = [
 const stepNumber = (index: number) => String(index + 1).padStart(2, "0");
 
 function CaraPesanComponent() {
+  const batch = batchCopy(Route.useLoaderData());
+
   return (
     <div className="flex min-h-svh flex-col bg-white font-body text-ink">
       <ReactLenis root />
@@ -60,10 +67,14 @@ function CaraPesanComponent() {
       <main className="flex-1">
         <OrderingGuideHero />
         <FlowSummary />
-        <PreorderGuide />
+        <PreorderGuide batch={batch} />
         <PreorderInvitation
           title="Siap untuk jeda yang lebih manis?"
-          description="Batch preorder masih dibuka hingga 24 Okt 2026 · 20.00 WIB. Pilih menu sekarang, bayar setelah invoice terbit."
+          description={
+            batch.open
+              ? `Batch preorder masih dibuka hingga ${batch.closesAt}. Pilih menu sekarang, bayar setelah invoice terbit.`
+              : "Batch preorder sedang ditutup. Lihat menu sambil menunggu batch berikutnya."
+          }
           href="/menu"
         />
       </main>
@@ -112,7 +123,7 @@ function FlowSummary() {
   );
 }
 
-function PreorderGuide() {
+function PreorderGuide({ batch }: { batch: BatchCopy }) {
   return (
     <section className="mx-auto flex max-w-[1280px] flex-col gap-6 px-5 py-8 lg:px-16 lg:py-[42px]">
       <div className="flex flex-col gap-[5px]">
@@ -145,8 +156,8 @@ function PreorderGuide() {
             <PackageCheck aria-hidden className="size-[26px] text-deep-ube" />
             <h3 className="text-[22px] font-bold text-deep-ube">Pilih yang paling pas.</h3>
             <p className="text-sm/[1.4] text-plum">
-              Pickup: 26 Okt 2026 di Kampus ubeloom. Delivery: isi alamat saat checkout dan lihat
-              biaya kirim sebelum memesan.
+              Pickup: {batch.pickupDateLong} di {batch.pickupLocation}. Delivery: isi alamat saat
+              checkout dan lihat biaya kirim sebelum memesan.
             </p>
           </div>
 

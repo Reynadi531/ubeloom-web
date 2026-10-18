@@ -13,9 +13,10 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
+import ProductNotFound from "@/components/storefront/product-not-found";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
 import StorefrontNav from "@/components/storefront/storefront-nav";
-import { getProduct, type ProductDetail, type ProductIcon } from "@/functions/get-product";
+import { getProduct, type ProductDetail, type ProductIcon } from "@/functions/products";
 
 export const Route = createFileRoute("/menu_/$slug")({
   loader: ({ params }) => getProduct({ data: { slug: params.slug } }),
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/menu_/$slug")({
       : [],
   }),
   component: ProductDetailComponent,
+  notFoundComponent: ProductNotFound,
 });
 
 const icons: Record<ProductIcon, LucideIcon> = {
@@ -94,7 +96,19 @@ function Breadcrumb({ name }: { name: string }) {
 }
 
 function ProductHero({ product }: { product: ProductDetail }) {
-  const { name, collection, subtitle, price, portionLabel, story, image, highlights } = product;
+  const {
+    name,
+    collection,
+    subtitle,
+    price,
+    portionLabel,
+    story,
+    image,
+    highlights,
+    available,
+    availability,
+    remaining,
+  } = product;
 
   return (
     <section className="mx-auto flex max-w-[1280px] flex-col gap-8 px-5 pb-10 lg:flex-row lg:gap-[62px] lg:px-16 lg:pt-2.5 lg:pb-[54px]">
@@ -146,7 +160,12 @@ function ProductHero({ product }: { product: ProductDetail }) {
         </ul>
 
         <hr className="border-ube-line" />
-        <PreorderAction name={name} />
+        <PreorderAction
+          name={name}
+          available={available}
+          availability={availability}
+          maxQuantity={Math.min(MAX_QUANTITY, remaining ?? MAX_QUANTITY)}
+        />
         <p className="text-[11px]/[1.5] text-plum">
           Pilih pickup atau delivery saat checkout. Bayar maks. 24 jam setelah pesan.
         </p>
@@ -158,7 +177,17 @@ function ProductHero({ product }: { product: ProductDetail }) {
 const MIN_QUANTITY = 1;
 const MAX_QUANTITY = 20;
 
-function PreorderAction({ name }: { name: string }) {
+function PreorderAction({
+  name,
+  available,
+  availability,
+  maxQuantity,
+}: {
+  name: string;
+  available: boolean;
+  availability: string;
+  maxQuantity: number;
+}) {
   const [quantity, setQuantity] = useState(MIN_QUANTITY);
 
   return (
@@ -167,7 +196,7 @@ function PreorderAction({ name }: { name: string }) {
         <button
           type="button"
           aria-label="Kurangi jumlah"
-          disabled={quantity <= MIN_QUANTITY}
+          disabled={!available || quantity <= MIN_QUANTITY}
           onClick={() => setQuantity((value) => value - 1)}
           className="text-[21px] font-medium text-plum disabled:opacity-40"
         >
@@ -179,7 +208,7 @@ function PreorderAction({ name }: { name: string }) {
         <button
           type="button"
           aria-label="Tambah jumlah"
-          disabled={quantity >= MAX_QUANTITY}
+          disabled={!available || quantity >= maxQuantity}
           onClick={() => setQuantity((value) => value + 1)}
           className="text-xl font-medium text-deep-ube disabled:opacity-40"
         >
@@ -189,10 +218,15 @@ function PreorderAction({ name }: { name: string }) {
       {/* No preorder flow (design frame 02) to hand off to yet, so confirm with a toast. */}
       <button
         type="button"
+        disabled={!available}
         onClick={() => toast.success(`${quantity} × ${name} siap dipesan.`)}
-        className="h-[50px] flex-1 rounded-full bg-deep-ube px-[22px] text-[15px] font-bold whitespace-pre text-vanilla transition-colors hover:bg-ube-pop"
+        className="h-[50px] flex-1 rounded-full bg-deep-ube px-[22px] text-[15px] font-bold whitespace-pre text-vanilla transition-colors hover:bg-ube-pop disabled:bg-plum disabled:opacity-60"
       >
-        Pesan sekarang →
+        {available
+          ? "Pesan sekarang →"
+          : availability === "HABIS"
+            ? "Stok habis"
+            : "Preorder ditutup"}
       </button>
     </div>
   );

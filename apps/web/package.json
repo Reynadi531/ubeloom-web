@@ -9,6 +9,7 @@
     "check-types": "vite build && tsc --noEmit",
     "env:generate": "varlock codegen",
     "db:seed": "bun scripts/seed-users.ts",
+    "db:seed:shop": "bun scripts/seed-shop.ts",
     "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@web-kwu/db": "workspace:*",
     "@web-kwu/ui": "workspace:*",
     "better-auth": "catalog:",
+    "drizzle-orm": "catalog:",
     "evlog": "^2.30.1",
     "lenis": "^1.3.27",
     "lucide-react": "^1.56.0",

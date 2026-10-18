@@ -13,7 +13,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   plugins: [
-    varlockVitePlugin({ ssrInjectMode: "auto-load" }),
+    varlockVitePlugin({ ssrInjectMode: process.env.VERCEL ? "resolved-env" : "auto-load" }),
     tailwindcss(),
     tanstackStart(),
     nitro(),

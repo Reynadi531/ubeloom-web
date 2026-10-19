@@ -47,6 +47,7 @@ const cardClassName = "rounded-[13px] border border-ube-line bg-surface";
 const scopeOptions: { value: VoucherScope; label: string }[] = [
   { value: "order", label: "Semua produk · satu diskon" },
   { value: "products", label: "Per produk · diskon masing-masing" },
+  { value: "shipping", label: "Ongkos kirim · khusus delivery" },
 ];
 
 const discountTypeOptions: { value: VoucherDiscountType; label: string }[] = [
@@ -163,9 +164,10 @@ function VoucherCard({ voucher, onEdit }: { voucher: VoucherRow; onEdit: () => v
       </div>
 
       <div className="rounded-lg bg-vanilla px-3 py-[11px]">
-        {voucher.scope === "order" && voucher.discountType && voucher.value ? (
+        {voucher.scope !== "products" && voucher.discountType && voucher.value ? (
           <p className="text-[11px] font-bold text-ink">
-            Diskon {discountLabel(voucher.discountType, voucher.value)} semua produk
+            Diskon {discountLabel(voucher.discountType, voucher.value)}{" "}
+            {voucher.scope === "shipping" ? "ongkos kirim" : "semua produk"}
           </p>
         ) : (
           <ul className="flex flex-col gap-1">
@@ -302,7 +304,7 @@ function VoucherForm({
       scope: form.scope,
       discountType: form.discountType,
       // Only the chosen scope's fields are sent; the other side would fail as empty.
-      value: form.scope === "order" ? parseNumber(form.value) : 0,
+      value: form.scope === "products" ? 0 : parseNumber(form.value),
       items:
         form.scope === "products"
           ? items.map((item) => ({
@@ -362,7 +364,7 @@ function VoucherForm({
         />
       </Field>
 
-      {form.scope === "order" ? (
+      {form.scope !== "products" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Jenis diskon">
             <OptionSelect
@@ -375,9 +377,13 @@ function VoucherForm({
           <Field
             label={form.discountType === "percentage" ? "Diskon (%)" : "Potongan (Rp)"}
             hint={
-              form.discountType === "percentage"
-                ? "Dari subtotal produk."
-                : "Sekali per pesanan, dari subtotal produk."
+              form.scope === "shipping"
+                ? form.discountType === "percentage"
+                  ? "Dari ongkir (area + kurir)."
+                  : "Sekali per pesanan, tidak melebihi ongkir."
+                : form.discountType === "percentage"
+                  ? "Dari subtotal produk."
+                  : "Sekali per pesanan, dari subtotal produk."
             }
           >
             <input

@@ -161,7 +161,7 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
           });
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
         const applied = data.voucherCode
-          ? await redeemVoucher(tx, data.voucherCode, lines)
+          ? await redeemVoucher(tx, data.voucherCode, lines, shippingFee)
           : { voucherId: null, voucherCode: null, discount: 0 };
         const isDelivery = data.method === "delivery";
 

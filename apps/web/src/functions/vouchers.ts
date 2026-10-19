@@ -47,8 +47,8 @@ export const saveVoucherSchema = z
     id: z.string().optional(),
     code: voucherCodeSchema,
     description: z.string().trim().max(120, "Deskripsi maksimal 120 karakter."),
-    scope: z.enum(["order", "products"], "Pilih cakupan voucher."),
-    /** Scope `order` only. */
+    scope: z.enum(["order", "products", "shipping"], "Pilih cakupan voucher."),
+    /** Scopes `order` and `shipping` only. */
     discountType: discountTypeSchema,
     value: z.number("Nilai diskon wajib diisi."),
     /** Scope `products` only: one discount per product. */
@@ -74,7 +74,7 @@ export const saveVoucherSchema = z
     active: z.boolean(),
   })
   .superRefine((value, ctx) => {
-    if (value.scope === "order") {
+    if (value.scope !== "products") {
       const issue = discountValueIssue(value.discountType, value.value);
       if (issue) ctx.addIssue({ code: "custom", path: ["value"], message: issue });
     } else {
@@ -113,9 +113,9 @@ export const saveVoucherSchema = z
   })
   // Fields of the other scope are cleared, not kept stale.
   .transform(({ discountType, value, items, ...rest }) =>
-    rest.scope === "order"
-      ? { ...rest, discountType, value, items: [] }
-      : { ...rest, discountType: null, value: null, items },
+    rest.scope === "products"
+      ? { ...rest, discountType: null, value: null, items }
+      : { ...rest, discountType, value, items: [] },
   );
 
 export type SaveVoucherInput = z.input<typeof saveVoucherSchema>;
@@ -133,6 +133,8 @@ export const checkVoucherSchema = z.object({
     )
     .min(1, "Pilih produk dulu sebelum memakai voucher.")
     .max(20),
+  /** Ongkir shown at checkout; preview only, placement recomputes it. */
+  shippingFee: z.number().int().min(0).max(100_000_000),
 });
 
 export type CheckVoucherData = z.output<typeof checkVoucherSchema>;

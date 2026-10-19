@@ -20,6 +20,7 @@ import { checkVoucher } from "@/functions/vouchers";
 import { formatRupiah } from "@/lib/format";
 import { type FulfillmentMethod, windowServesArea } from "@/lib/orders";
 import { seo } from "@/lib/seo";
+import { shippingDiscount } from "@/lib/vouchers";
 import { cn } from "@web-kwu/ui/lib/utils";
 
 export const Route = createFileRoute("/pesan")({
@@ -137,7 +138,12 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     return quantity > 0 ? [{ ...product, quantity }] : [];
   });
   const subtotal = lines.reduce((sum, { price, quantity }) => sum + price * quantity, 0);
-  const discount = voucher.applied?.discount ?? 0;
+  // An ongkir voucher follows the chosen area, courier and method without a re-check.
+  const discount = voucher.applied?.shipping
+    ? shippingDiscount(voucher.applied.shipping, shippingFee)
+    : (voucher.applied?.discount ?? 0);
+  /** Ongkir voucher kept while switching to pickup; it is not sent until delivery again. */
+  const voucherIdle = Boolean(voucher.applied?.shipping) && shippingFee === 0;
   const total = subtotal - discount + shippingFee;
   const minFee = Math.min(...checkout.deliveryAreas.map(({ fee }) => fee));
 
@@ -148,7 +154,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     };
     setQuantities(next);
     // The discount depends on the cart, so an applied voucher is re-checked.
-    if (voucher.applied) voucher.apply(voucher.applied.code, cartItems(next));
+    if (voucher.applied) voucher.apply(voucher.applied.code, cartItems(next), shippingFee);
   };
 
   const input = (): PlaceOrderInput => ({
@@ -164,7 +170,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     courier: method === "delivery" && courier ? courier.name : undefined,
     items: lines.map(({ id, quantity }) => ({ productId: id, quantity })),
     notes: notes || undefined,
-    voucherCode: voucher.applied?.code,
+    voucherCode: voucherIdle ? undefined : voucher.applied?.code,
     termsAccepted: termsAccepted as true,
     drawOptIn,
   });
@@ -592,12 +598,13 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
               }
               amount={shippingFee}
             />
-            {voucher.applied && (
+            {voucher.applied && !voucherIdle && (
               <AmountRow label={`Voucher ${voucher.applied.code}`} amount={-discount} />
             )}
             <VoucherField
               voucher={voucher}
-              onApply={(code) => voucher.apply(code, cartItems(quantities))}
+              idle={voucherIdle}
+              onApply={(code) => voucher.apply(code, cartItems(quantities), shippingFee)}
             />
             <hr className="border-ube-line" />
             <TotalRow label="Total pembayaran" amount={total} />
@@ -641,7 +648,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
             <ItemSummaryRow key={id} name={name} quantity={quantity} unitPrice={price} />
           ))}
           <AmountRow label="Ongkir" amount={shippingFee} />
-          {voucher.applied && (
+          {voucher.applied && !voucherIdle && (
             <AmountRow label={`Voucher ${voucher.applied.code}`} amount={-discount} />
           )}
           <hr className="border-ube-line" />
@@ -886,7 +893,11 @@ function useVoucher(batchId: string) {
   const [checking, setChecking] = useState(false);
   const latest = useRef(0);
 
-  const apply = async (code: string, items: { productId: string; quantity: number }[]) => {
+  const apply = async (
+    code: string,
+    items: { productId: string; quantity: number }[],
+    shippingFee: number,
+  ) => {
     const request = ++latest.current;
     if (items.length === 0) {
       setApplied(null);
@@ -895,7 +906,7 @@ function useVoucher(batchId: string) {
     }
     setChecking(true);
     try {
-      const result = await checkVoucher({ data: { batchId, code, items } });
+      const result = await checkVoucher({ data: { batchId, code, items, shippingFee } });
       if (request !== latest.current) return;
       setApplied(result);
       setError("");
@@ -920,9 +931,12 @@ function useVoucher(batchId: string) {
 
 function VoucherField({
   voucher,
+  idle,
   onApply,
 }: {
   voucher: ReturnType<typeof useVoucher>;
+  /** Applied ongkir voucher that does not apply to the current method. */
+  idle: boolean;
   onApply: (code: string) => void;
 }) {
   const id = useId();
@@ -935,7 +949,9 @@ function VoucherField({
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="font-data text-[11px] font-bold text-deep-ube">{voucher.applied.code}</p>
           <p className="text-[11px] text-plum">
-            {voucher.applied.description || "Voucher dipakai"}
+            {idle
+              ? "Voucher ongkir hanya berlaku untuk delivery."
+              : voucher.applied.description || "Voucher dipakai"}
             {voucher.checking && " · memeriksa ulang…"}
           </p>
         </div>

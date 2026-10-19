@@ -33,11 +33,16 @@ async function voucherUsage(executor: Executor, voucherIds: string[]) {
  * Applies a voucher code to priced lines inside the order transaction. Locks the voucher
  * row so concurrent checkouts cannot overrun its quota.
  */
-export async function redeemVoucher(tx: Transaction, code: string, lines: VoucherLine[]) {
+export async function redeemVoucher(
+  tx: Transaction,
+  code: string,
+  lines: VoucherLine[],
+  shippingFee: number,
+) {
   const [locked] = await tx.select().from(voucher).where(eq(voucher.code, code)).for("update");
   if (!locked) throw new OrderError("Kode voucher tidak ditemukan.");
   const used = (await voucherUsage(tx, [locked.id])).get(locked.id) ?? 0;
-  const result = applyVoucher(locked, lines, used);
+  const result = applyVoucher(locked, lines, used, shippingFee);
   if (!result.ok) throw new OrderError(result.message);
   return { voucherId: locked.id, voucherCode: locked.code, discount: result.discount };
 }
@@ -60,12 +65,21 @@ export async function checkVoucherForCart(data: CheckVoucherData) {
     quantity: quantities.get(productId) ?? 0,
   }));
   const used = (await voucherUsage(db, [found.id])).get(found.id) ?? 0;
-  const result = applyVoucher(found, lines, used);
+  const result = applyVoucher(found, lines, used, data.shippingFee);
   if (!result.ok) throw new Error(result.message);
   return {
     code: found.code,
     description: found.description,
     discount: result.discount,
+    /** Ongkir rule, so checkout can follow fee changes; null for product vouchers. */
+    shipping:
+      found.scope === "shipping"
+        ? {
+            discountType: found.discountType,
+            value: found.value,
+            maxDiscount: found.maxDiscount,
+          }
+        : null,
   };
 }
 

@@ -2,14 +2,15 @@
  * Voucher rules shared by checkout (preview and placement) and the dashboard. Pure so the
  * server and the client agree on the discount; the server always recomputes it.
  *
- * Two shapes:
+ * Three shapes:
  * - scope `order`: one percentage or rupiah cut on the whole product subtotal.
  * - scope `products`: an individual discount per product; rupiah cuts apply per unit.
+ * - scope `shipping`: one percentage or rupiah cut on ongkir; delivery orders only.
  */
 import { formatRupiah } from "./format";
 
 export type VoucherDiscountType = "percentage" | "fixed";
-export type VoucherScope = "order" | "products";
+export type VoucherScope = "order" | "products" | "shipping";
 
 export interface VoucherItemRule {
   productId: string;
@@ -65,18 +66,34 @@ function lineDiscount(
     : Math.min(value, unitPrice) * quantity;
 }
 
+/**
+ * Ongkir discount of a `shipping` voucher, capped by its max discount and the fee itself.
+ * Exported so checkout can follow fee changes without re-checking the code.
+ */
+export function shippingDiscount(
+  rule: Pick<VoucherRule, "discountType" | "value" | "maxDiscount">,
+  shippingFee: number,
+) {
+  if (!rule.discountType || !rule.value) return 0;
+  const discount =
+    rule.discountType === "percentage" ? Math.floor((shippingFee * rule.value) / 100) : rule.value;
+  return Math.min(discount, rule.maxDiscount ?? discount, shippingFee);
+}
+
 export type VoucherResult =
   | { ok: true; discount: number; eligibleSubtotal: number }
   | { ok: false; message: string };
 
 /**
- * Discount of a voucher on the given lines. `used` is the number of orders already
- * holding the voucher. Never exceeds the eligible subtotal, so totals stay ≥ ongkir.
+ * Discount of a voucher on the given lines and ongkir. `used` is the number of orders
+ * already holding the voucher. A product discount never exceeds the eligible subtotal and
+ * an ongkir discount never exceeds `shippingFee`, so totals stay ≥ 0.
  */
 export function applyVoucher(
   rule: VoucherRule,
   lines: VoucherLine[],
   used: number,
+  shippingFee: number,
   now = new Date(),
 ): VoucherResult {
   const unavailable = availabilityError(rule, used, now);
@@ -84,6 +101,17 @@ export function applyVoucher(
 
   let eligibleSubtotal = 0;
   let discount = 0;
+  if (rule.scope === "shipping") {
+    if (!rule.discountType || !rule.value) return { ok: false, message: "Voucher tidak valid." };
+    eligibleSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    if (eligibleSubtotal < rule.minSubtotal) {
+      return { ok: false, message: `Minimal belanja ${formatRupiah(rule.minSubtotal)}.` };
+    }
+    if (shippingFee === 0) {
+      return { ok: false, message: "Voucher ongkir hanya berlaku untuk pesanan delivery." };
+    }
+    return { ok: true, discount: shippingDiscount(rule, shippingFee), eligibleSubtotal };
+  }
   if (rule.scope === "order") {
     if (!rule.discountType || !rule.value) return { ok: false, message: "Voucher tidak valid." };
     eligibleSubtotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);

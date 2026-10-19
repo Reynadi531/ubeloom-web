@@ -59,8 +59,11 @@ export const paymentAttemptStatus = pgEnum("payment_attempt_status", [
 export const drawStatus = pgEnum("draw_status", ["draft", "frozen", "drawn"]);
 /** Percentage off, or a rupiah cut. */
 export const voucherDiscountType = pgEnum("voucher_discount_type", ["percentage", "fixed"]);
-/** One discount on the whole subtotal, or an individual discount per product. */
-export const voucherScope = pgEnum("voucher_scope", ["order", "products"]);
+/**
+ * One discount on the whole subtotal, an individual discount per product, or a discount
+ * on ongkir (delivery orders only).
+ */
+export const voucherScope = pgEnum("voucher_scope", ["order", "products", "shipping"]);
 
 /**
  * Discount of one product in a `products`-scope voucher. A `fixed` value is cut from
@@ -193,7 +196,7 @@ export const deliveryZone = pgTable(
   (table) => [index("delivery_zone_batch_idx").on(table.batchId)],
 );
 
-/** Coupon code customers enter at checkout for a discount on products (never ongkir). */
+/** Coupon code customers enter at checkout for a discount on products or on ongkir. */
 export const voucher = pgTable(
   "voucher",
   {
@@ -203,9 +206,9 @@ export const voucher = pgTable(
     /** Customer-facing summary shown once the code is applied, e.g. "Diskon 10% semua menu". */
     description: text("description").notNull().default(""),
     scope: voucherScope("scope").notNull().default("order"),
-    /** Discount on the whole subtotal; set only when scope is `order`. */
+    /** Discount on the whole subtotal (`order`) or on ongkir (`shipping`); null for `products`. */
     discountType: voucherDiscountType("discount_type"),
-    /** Percent (1–100) for `percentage`; whole rupiah for `fixed`. Scope `order` only. */
+    /** Percent (1–100) for `percentage`; whole rupiah for `fixed`. Scope `order`/`shipping`. */
     value: integer("value"),
     /** Per-product discounts; set only when scope is `products`. */
     items: jsonb("items").$type<VoucherItem[]>().notNull().default([]),
@@ -263,7 +266,10 @@ export const order = pgTable(
     fulfillmentStatus: fulfillmentStatus("fulfillment_status").notNull().default("pending"),
     subtotal: rupiah("subtotal").notNull(),
     shippingFee: rupiah("shipping_fee").notNull().default(0),
-    /** Voucher discount off the subtotal; total = subtotal − discount + shippingFee. */
+    /**
+     * Voucher discount off the subtotal, or off ongkir for a `shipping` voucher (never above
+     * shippingFee); total = subtotal − discount + shippingFee.
+     */
     discount: rupiah("discount").notNull().default(0),
     voucherId: text("voucher_id").references(() => voucher.id, { onDelete: "set null" }),
     /** Code snapshot so invoices keep it after the voucher is edited or deleted. */

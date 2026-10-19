@@ -16,11 +16,11 @@ import {
   placeOrder,
   placeOrderSchema,
 } from "@/functions/checkout";
-import { checkVoucher } from "@/functions/vouchers";
+import { checkVouchers } from "@/functions/vouchers";
 import { formatRupiah } from "@/lib/format";
 import { type FulfillmentMethod, windowServesArea } from "@/lib/orders";
 import { seo } from "@/lib/seo";
-import { shippingDiscount } from "@/lib/vouchers";
+import { MAX_STACKED_VOUCHERS, stackedShippingDiscounts } from "@/lib/vouchers";
 import { cn } from "@web-kwu/ui/lib/utils";
 
 export const Route = createFileRoute("/pesan")({
@@ -125,7 +125,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
   const [drawOptIn, setDrawOptIn] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const voucher = useVoucher(checkout.batch.id);
+  const vouchers = useVouchers(checkout.batch.id);
 
   const area = checkout.deliveryAreas.find(({ name }) => name === areaName);
   const areaWindows = windowsFor(areaName);
@@ -138,12 +138,20 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     return quantity > 0 ? [{ ...product, quantity }] : [];
   });
   const subtotal = lines.reduce((sum, { price, quantity }) => sum + price * quantity, 0);
-  // An ongkir voucher follows the chosen area, courier and method without a re-check.
-  const discount = voucher.applied?.shipping
-    ? shippingDiscount(voucher.applied.shipping, shippingFee)
-    : (voucher.applied?.discount ?? 0);
-  /** Ongkir voucher kept while switching to pickup; it is not sent until delivery again. */
-  const voucherIdle = Boolean(voucher.applied?.shipping) && shippingFee === 0;
+  // Ongkir vouchers follow the chosen area, courier and method without a re-check. On
+  // pickup they stay applied but idle, and are not sent until delivery again.
+  const shippingVouchers =
+    shippingFee > 0 ? vouchers.applied.filter(({ shipping }) => shipping) : [];
+  const shippingCuts = stackedShippingDiscounts(
+    shippingVouchers.flatMap(({ shipping }) => (shipping ? [shipping] : [])),
+    shippingFee,
+  );
+  const voucherLines = vouchers.applied.flatMap((applied) => {
+    if (!applied.shipping) return [{ code: applied.code, discount: applied.discount }];
+    const index = shippingVouchers.indexOf(applied);
+    return index === -1 ? [] : [{ code: applied.code, discount: shippingCuts[index] }];
+  });
+  const discount = voucherLines.reduce((sum, line) => sum + line.discount, 0);
   const total = subtotal - discount + shippingFee;
   const minFee = Math.min(...checkout.deliveryAreas.map(({ fee }) => fee));
 
@@ -153,8 +161,14 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
       [productId]: Math.min(max, Math.max(0, (quantities[productId] ?? 0) + delta)),
     };
     setQuantities(next);
-    // The discount depends on the cart, so an applied voucher is re-checked.
-    if (voucher.applied) voucher.apply(voucher.applied.code, cartItems(next), shippingFee);
+    // Discounts depend on the cart, so applied vouchers are re-checked.
+    if (vouchers.applied.length) {
+      vouchers.check(
+        vouchers.applied.map(({ code }) => code),
+        cartItems(next),
+        shippingFee,
+      );
+    }
   };
 
   const input = (): PlaceOrderInput => ({
@@ -170,7 +184,7 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
     courier: method === "delivery" && courier ? courier.name : undefined,
     items: lines.map(({ id, quantity }) => ({ productId: id, quantity })),
     notes: notes || undefined,
-    voucherCode: voucherIdle ? undefined : voucher.applied?.code,
+    voucherCodes: voucherLines.map(({ code }) => code),
     termsAccepted: termsAccepted as true,
     drawOptIn,
   });
@@ -598,13 +612,31 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
               }
               amount={shippingFee}
             />
-            {voucher.applied && !voucherIdle && (
-              <AmountRow label={`Voucher ${voucher.applied.code}`} amount={-discount} />
-            )}
+            {voucherLines.map(({ code, discount }) => (
+              <AmountRow key={code} label={`Voucher ${code}`} amount={-discount} />
+            ))}
             <VoucherField
-              voucher={voucher}
-              idle={voucherIdle}
-              onApply={(code) => voucher.apply(code, cartItems(quantities), shippingFee)}
+              vouchers={vouchers}
+              idleCodes={vouchers.applied
+                .filter((applied) => applied.shipping && !shippingVouchers.includes(applied))
+                .map(({ code }) => code)}
+              onApply={(code) =>
+                vouchers.check(
+                  [...vouchers.applied.map((applied) => applied.code), code],
+                  cartItems(quantities),
+                  shippingFee,
+                  code,
+                )
+              }
+              onRemove={(code) =>
+                vouchers.check(
+                  vouchers.applied.flatMap((applied) =>
+                    applied.code === code ? [] : [applied.code],
+                  ),
+                  cartItems(quantities),
+                  shippingFee,
+                )
+              }
             />
             <hr className="border-ube-line" />
             <TotalRow label="Total pembayaran" amount={total} />
@@ -648,9 +680,9 @@ function CheckoutForm({ checkout }: { checkout: CheckoutData }) {
             <ItemSummaryRow key={id} name={name} quantity={quantity} unitPrice={price} />
           ))}
           <AmountRow label="Ongkir" amount={shippingFee} />
-          {voucher.applied && !voucherIdle && (
-            <AmountRow label={`Voucher ${voucher.applied.code}`} amount={-discount} />
-          )}
+          {voucherLines.map(({ code, discount }) => (
+            <AmountRow key={code} label={`Voucher ${code}`} amount={-discount} />
+          ))}
           <hr className="border-ube-line" />
           <TotalRow label="Total pembayaran" amount={total} />
           <div className="flex flex-col gap-[5px] rounded-[8px] bg-white px-3 py-2.5">
@@ -881,103 +913,119 @@ function cartItems(quantities: Record<string, number>) {
   );
 }
 
-type AppliedVoucher = Awaited<ReturnType<typeof checkVoucher>>;
+type VoucherCheck = Awaited<ReturnType<typeof checkVouchers>>[number];
+type AppliedVoucher = Extract<VoucherCheck, { ok: true }>;
 
 /**
- * Voucher applied to the cart. The server prices the preview; only the latest request
- * wins so quick quantity changes cannot leave a stale discount behind.
+ * Vouchers stacked on the cart. The server prices the preview; only the latest request
+ * wins so quick quantity changes cannot leave a stale discount behind. A code that no
+ * longer applies is dropped and the others are kept.
  */
-function useVoucher(batchId: string) {
-  const [applied, setApplied] = useState<AppliedVoucher | null>(null);
+function useVouchers(batchId: string) {
+  const [applied, setApplied] = useState<AppliedVoucher[]>([]);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
   const latest = useRef(0);
 
-  const apply = async (
-    code: string,
+  /**
+   * Re-prices `codes` as the new stack; `added` is the code the customer just typed.
+   * Resolves true once `added` is applied.
+   */
+  const check = async (
+    codes: string[],
     items: { productId: string; quantity: number }[],
     shippingFee: number,
+    added?: string,
   ) => {
+    if (added && applied.some(({ code }) => code === added)) {
+      setError(`Voucher ${added} sudah dipakai.`);
+      return false;
+    }
     const request = ++latest.current;
-    if (items.length === 0) {
-      setApplied(null);
-      setError(code ? "Pilih produk dulu sebelum memakai voucher." : "");
-      return;
+    if (codes.length === 0 || items.length === 0) {
+      setApplied([]);
+      setError(codes.length ? "Pilih produk dulu sebelum memakai voucher." : "");
+      setChecking(false);
+      return false;
     }
     setChecking(true);
     try {
-      const result = await checkVoucher({ data: { batchId, code, items, shippingFee } });
-      if (request !== latest.current) return;
-      setApplied(result);
-      setError("");
+      const results = await checkVouchers({ data: { batchId, codes, items, shippingFee } });
+      if (request !== latest.current) return false;
+      setApplied(results.filter((result): result is AppliedVoucher => result.ok));
+      const failed = results.find((result) => !result.ok);
+      setError(
+        !failed || failed.ok
+          ? ""
+          : failed.code === added
+            ? failed.message
+            : `Voucher ${failed.code} dilepas: ${failed.message}`,
+      );
+      return results.some((result) => result.ok && result.code === added);
     } catch (failure) {
-      if (request !== latest.current) return;
-      setApplied(null);
+      if (request !== latest.current) return false;
+      // A typed code that fails validation keeps the stack; a failed re-check clears it.
+      if (!added) setApplied([]);
       setError(serverErrorMessage(failure));
+      return false;
     } finally {
       if (request === latest.current) setChecking(false);
     }
   };
 
-  const clear = () => {
-    latest.current++;
-    setApplied(null);
-    setError("");
-    setChecking(false);
-  };
-
-  return { applied, error, checking, apply, clear };
+  return { applied, error, checking, check };
 }
 
 function VoucherField({
-  voucher,
-  idle,
+  vouchers,
+  idleCodes,
   onApply,
+  onRemove,
 }: {
-  voucher: ReturnType<typeof useVoucher>;
-  /** Applied ongkir voucher that does not apply to the current method. */
-  idle: boolean;
-  onApply: (code: string) => void;
+  vouchers: ReturnType<typeof useVouchers>;
+  /** Applied ongkir vouchers that do not apply to the current method. */
+  idleCodes: string[];
+  /** Resolves true once the code is applied. */
+  onApply: (code: string) => Promise<boolean>;
+  onRemove: (code: string) => void;
 }) {
   const id = useId();
   const [code, setCode] = useState("");
+  const full = vouchers.applied.length >= MAX_STACKED_VOUCHERS;
 
-  if (voucher.applied) {
-    return (
-      <div className="flex items-center gap-2.5 rounded-[8px] bg-white px-3 py-2.5">
-        <TicketPercent aria-hidden className="size-4 shrink-0 text-ube-pop" />
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="font-data text-[11px] font-bold text-deep-ube">{voucher.applied.code}</p>
-          <p className="text-[11px] text-plum">
-            {idle
-              ? "Voucher ongkir hanya berlaku untuk delivery."
-              : voucher.applied.description || "Voucher dipakai"}
-            {voucher.checking && " · memeriksa ulang…"}
-          </p>
-        </div>
-        <button
-          type="button"
-          aria-label={`Lepas voucher ${voucher.applied.code}`}
-          onClick={() => {
-            voucher.clear();
-            setCode("");
-          }}
-          className="flex size-7 shrink-0 items-center justify-center rounded-full text-plum transition-colors hover:text-ube-pop"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-    );
-  }
-
-  const submit = () => {
-    if (code.trim()) onApply(code);
+  const submit = async () => {
+    if (code.trim() && (await onApply(code.trim()))) setCode("");
   };
 
   return (
     <div className="flex flex-col gap-1.5">
+      {vouchers.applied.map((applied) => (
+        <div
+          key={applied.code}
+          className="flex items-center gap-2.5 rounded-[8px] bg-white px-3 py-2.5"
+        >
+          <TicketPercent aria-hidden className="size-4 shrink-0 text-ube-pop" />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <p className="font-data text-[11px] font-bold text-deep-ube">{applied.code}</p>
+            <p className="text-[11px] text-plum">
+              {idleCodes.includes(applied.code)
+                ? "Voucher ongkir hanya berlaku untuk delivery."
+                : applied.description || "Voucher dipakai"}
+              {vouchers.checking && " · memeriksa ulang…"}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label={`Lepas voucher ${applied.code}`}
+            onClick={() => onRemove(applied.code)}
+            className="flex size-7 shrink-0 items-center justify-center rounded-full text-plum transition-colors hover:text-ube-pop"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ))}
       <label htmlFor={id} className="text-xs font-bold text-ink">
-        Kode voucher
+        {vouchers.applied.length ? "Tambah voucher lain" : "Kode voucher"}
       </label>
       <div className="flex gap-2">
         <input
@@ -986,9 +1034,10 @@ function VoucherField({
           maxLength={32}
           autoCapitalize="characters"
           autoComplete="off"
-          placeholder="Punya kode promo?"
-          aria-invalid={voucher.error ? true : undefined}
-          aria-describedby={voucher.error ? `${id}-error` : undefined}
+          disabled={full}
+          placeholder={full ? `Maksimal ${MAX_STACKED_VOUCHERS} voucher` : "Punya kode promo?"}
+          aria-invalid={vouchers.error ? true : undefined}
+          aria-describedby={vouchers.error ? `${id}-error` : undefined}
           onChange={(event) => setCode(event.target.value.toUpperCase())}
           onKeyDown={(event) => {
             // Enter applies the code instead of submitting the checkout form.
@@ -1001,16 +1050,16 @@ function VoucherField({
         />
         <button
           type="button"
-          disabled={voucher.checking || !code.trim()}
+          disabled={full || vouchers.checking || !code.trim()}
           onClick={submit}
           className="shrink-0 rounded-[8px] border-[1.5px] border-deep-ube px-4 text-xs font-bold text-deep-ube transition-colors hover:bg-white disabled:opacity-50"
         >
-          {voucher.checking ? "Memeriksa…" : "Pakai"}
+          {vouchers.checking ? "Memeriksa…" : "Pakai"}
         </button>
       </div>
-      {voucher.error && (
+      {vouchers.error && (
         <p id={`${id}-error`} role="alert" className="text-[11px] font-semibold text-ube-pop">
-          {voucher.error}
+          {vouchers.error}
         </p>
       )}
     </div>

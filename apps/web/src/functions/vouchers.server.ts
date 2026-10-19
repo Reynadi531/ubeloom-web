@@ -2,10 +2,10 @@
  * Server-only voucher logic behind `./vouchers` and checkout. A voucher's usage is the
  * number of non-cancelled orders holding it, so cancelling an order frees its use.
  */
-import { order, voucher } from "@web-kwu/db/schema/shop";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { order, orderVoucher, voucher } from "@web-kwu/db/schema/shop";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 
-import { applyVoucher, type VoucherLine } from "@/lib/vouchers";
+import { applyVouchers, type VoucherLine } from "@/lib/vouchers";
 import { db } from "@/services";
 
 import { OrderError, isUniqueViolation, mergeQuantities } from "./orders.server";
@@ -18,10 +18,13 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function voucherUsage(executor: Executor, voucherIds: string[]) {
   if (voucherIds.length === 0) return new Map<string, number>();
   const rows = await executor
-    .select({ voucherId: order.voucherId, count: sql<number>`count(*)::int` })
-    .from(order)
-    .where(and(inArray(order.voucherId, voucherIds), ne(order.fulfillmentStatus, "cancelled")))
-    .groupBy(order.voucherId);
+    .select({ voucherId: orderVoucher.voucherId, count: sql<number>`count(*)::int` })
+    .from(orderVoucher)
+    .innerJoin(order, eq(order.id, orderVoucher.orderId))
+    .where(
+      and(inArray(orderVoucher.voucherId, voucherIds), ne(order.fulfillmentStatus, "cancelled")),
+    )
+    .groupBy(orderVoucher.voucherId);
   return new Map(rows.map(({ voucherId, count }) => [voucherId ?? "", Number(count)]));
 }
 
@@ -30,57 +33,102 @@ async function voucherUsage(executor: Executor, voucherIds: string[]) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Applies a voucher code to priced lines inside the order transaction. Locks the voucher
- * row so concurrent checkouts cannot overrun its quota.
+ * Applies stacked voucher codes to priced lines inside the order transaction. Locks the
+ * voucher rows (in id order, so concurrent checkouts cannot deadlock) so they cannot overrun
+ * their quotas. Every code must apply; the client only sends codes its preview accepted.
  */
-export async function redeemVoucher(
+export async function redeemVouchers(
   tx: Transaction,
-  code: string,
+  codes: string[],
   lines: VoucherLine[],
   shippingFee: number,
 ) {
-  const [locked] = await tx.select().from(voucher).where(eq(voucher.code, code)).for("update");
-  if (!locked) throw new OrderError("Kode voucher tidak ditemukan.");
-  const used = (await voucherUsage(tx, [locked.id])).get(locked.id) ?? 0;
-  const result = applyVoucher(locked, lines, used, shippingFee);
-  if (!result.ok) throw new OrderError(result.message);
-  return { voucherId: locked.id, voucherCode: locked.code, discount: result.discount };
+  if (codes.length === 0) return [];
+  const locked = await tx
+    .select()
+    .from(voucher)
+    .where(inArray(voucher.code, codes))
+    .orderBy(asc(voucher.id))
+    .for("update");
+  const byCode = new Map(locked.map((row) => [row.code, row]));
+  const missing = codes.find((code) => !byCode.has(code));
+  if (missing) throw new OrderError(`Kode voucher ${missing} tidak ditemukan.`);
+
+  const stacked = codes.map((code) => byCode.get(code)!);
+  const usage = await voucherUsage(
+    tx,
+    stacked.map(({ id }) => id),
+  );
+  const results = applyVouchers(
+    stacked.map((rule) => ({ rule, used: usage.get(rule.id) ?? 0 })),
+    lines,
+    shippingFee,
+  );
+  return stacked.map((row, index) => {
+    const result = results[index];
+    if (!result.ok) throw new OrderError(`Voucher ${row.code}: ${result.message}`);
+    return { voucherId: row.id, code: row.code, discount: result.discount };
+  });
 }
 
-/** Prices the cart at current batch prices and previews the voucher's discount. */
-export async function checkVoucherForCart(data: CheckVoucherData) {
+/**
+ * Prices the cart at current batch prices and previews the stacked discounts of the codes,
+ * one result per code in the same order.
+ */
+export async function checkVouchersForCart(data: CheckVoucherData) {
   const quantities = mergeQuantities(data.items);
   const [found, batchProducts] = await Promise.all([
-    db.query.voucher.findFirst({ where: { code: data.code } }),
+    db.query.voucher.findMany({ where: { code: { in: data.codes } } }),
     db.query.batchProduct.findMany({
       where: { batchId: data.batchId, productId: { in: [...quantities.keys()] } },
       with: { product: { columns: { price: true } } },
     }),
   ]);
-  if (!found) throw new Error("Kode voucher tidak ditemukan.");
 
   const lines = batchProducts.map(({ productId, price, product }) => ({
     productId,
     unitPrice: price ?? product.price,
     quantity: quantities.get(productId) ?? 0,
   }));
-  const used = (await voucherUsage(db, [found.id])).get(found.id) ?? 0;
-  const result = applyVoucher(found, lines, used, data.shippingFee);
-  if (!result.ok) throw new Error(result.message);
-  return {
-    code: found.code,
-    description: found.description,
-    discount: result.discount,
-    /** Ongkir rule, so checkout can follow fee changes; null for product vouchers. */
-    shipping:
-      found.scope === "shipping"
-        ? {
-            discountType: found.discountType,
-            value: found.value,
-            maxDiscount: found.maxDiscount,
-          }
-        : null,
-  };
+  const byCode = new Map(found.map((row) => [row.code, row]));
+  const stacked = data.codes.flatMap((code) => {
+    const row = byCode.get(code);
+    return row ? [row] : [];
+  });
+  const usage = await voucherUsage(
+    db,
+    stacked.map(({ id }) => id),
+  );
+  const results = applyVouchers(
+    stacked.map((rule) => ({ rule, used: usage.get(rule.id) ?? 0 })),
+    lines,
+    data.shippingFee,
+  );
+  const resultOf = new Map(stacked.map((row, index) => [row.code, results[index]]));
+
+  return data.codes.map((code) => {
+    const row = byCode.get(code);
+    const result = resultOf.get(code);
+    if (!row || !result) {
+      return { ok: false as const, code, message: "Kode voucher tidak ditemukan." };
+    }
+    if (!result.ok) return { ok: false as const, code, message: result.message };
+    return {
+      ok: true as const,
+      code: row.code,
+      description: row.description,
+      discount: result.discount,
+      /** Ongkir rule, so checkout can follow fee changes; null for product vouchers. */
+      shipping:
+        row.scope === "shipping"
+          ? {
+              discountType: row.discountType,
+              value: row.value,
+              maxDiscount: row.maxDiscount,
+            }
+          : null,
+    };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -178,8 +226,8 @@ export async function removeVoucher(id: string) {
   // Any order, cancelled included, keeps the voucher for its history.
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(order)
-    .where(eq(order.voucherId, id));
+    .from(orderVoucher)
+    .where(eq(orderVoucher.voucherId, id));
   if (Number(count) > 0) {
     throw new Error("Voucher sudah dipakai pesanan. Nonaktifkan saja agar riwayat tetap utuh.");
   }

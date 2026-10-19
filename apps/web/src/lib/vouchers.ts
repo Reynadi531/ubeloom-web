@@ -6,6 +6,10 @@
  * - scope `order`: one percentage or rupiah cut on the whole product subtotal.
  * - scope `products`: an individual discount per product; rupiah cuts apply per unit.
  * - scope `shipping`: one percentage or rupiah cut on ongkir; delivery orders only.
+ *
+ * Different vouchers stack on one order (never the same one twice). Each is computed on the
+ * full cart, then cut to what is left of the subtotal (product vouchers) or of the ongkir
+ * (shipping vouchers), in the order they were applied.
  */
 import { formatRupiah } from "./format";
 
@@ -41,6 +45,9 @@ export interface VoucherLine {
 export const normalizeVoucherCode = (code: string) => code.trim().toUpperCase();
 
 export const VOUCHER_CODE_PATTERN = /^[A-Z0-9_-]{3,32}$/;
+
+/** Vouchers one order may stack. */
+export const MAX_STACKED_VOUCHERS = 5;
 
 /** "10%", "Rp 5.000" for an order rule; "Rp 3.000 / item" for a per-product rupiah cut. */
 export function discountLabel(discountType: VoucherDiscountType, value: number, perItem = false) {
@@ -139,4 +146,46 @@ export function applyVoucher(
   }
   if (rule.maxDiscount !== null) discount = Math.min(discount, rule.maxDiscount);
   return { ok: true, discount: Math.min(discount, eligibleSubtotal), eligibleSubtotal };
+}
+
+/**
+ * Discounts of stacked vouchers, one result per entry in the same order. A failing voucher
+ * takes no room, so the others keep the discounts they would have without it.
+ */
+export function applyVouchers(
+  stack: { rule: VoucherRule; used: number }[],
+  lines: VoucherLine[],
+  shippingFee: number,
+  now = new Date(),
+): VoucherResult[] {
+  let productRoom = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  let shippingRoom = shippingFee;
+  return stack.map(({ rule, used }) => {
+    const result = applyVoucher(rule, lines, used, shippingFee, now);
+    if (!result.ok) return result;
+    if (rule.scope === "shipping") {
+      const discount = Math.min(result.discount, shippingRoom);
+      shippingRoom -= discount;
+      return { ...result, discount };
+    }
+    const discount = Math.min(result.discount, productRoom);
+    productRoom -= discount;
+    return { ...result, discount };
+  });
+}
+
+/**
+ * Ongkir discounts of stacked shipping vouchers for the given fee, in order, together never
+ * above the fee. Lets checkout follow fee changes without re-checking the codes.
+ */
+export function stackedShippingDiscounts(
+  rules: Pick<VoucherRule, "discountType" | "value" | "maxDiscount">[],
+  shippingFee: number,
+) {
+  let room = shippingFee;
+  return rules.map((rule) => {
+    const discount = Math.min(shippingDiscount(rule, shippingFee), room);
+    room -= discount;
+    return discount;
+  });
 }

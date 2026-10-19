@@ -37,14 +37,14 @@ export async function loadInvoiceForm(orderId?: string) {
   const orders = current
     ? await db.query.order.findMany({
         where: { batchId: current.id },
-        with: { items: true },
+        with: { items: true, vouchers: { orderBy: { position: "asc" } } },
         orderBy: { createdAt: "desc" },
       })
     : [];
   if (orderId && !orders.some(({ id }) => id === orderId)) {
     const extra = await db.query.order.findFirst({
       where: { id: orderId },
-      with: { items: true },
+      with: { items: true, vouchers: { orderBy: { position: "asc" } } },
     });
     if (extra) orders.unshift(extra);
   }
@@ -80,7 +80,7 @@ export async function loadInvoiceForm(orderId?: string) {
           ? ["Ongkir", row.deliveryArea, row.courier].filter(Boolean).join(" · ")
           : null,
       discount: row.discount,
-      voucherCode: row.voucherCode,
+      vouchers: row.vouchers.map(({ code, discount }) => ({ code, discount })),
       total: row.total,
     })),
   };

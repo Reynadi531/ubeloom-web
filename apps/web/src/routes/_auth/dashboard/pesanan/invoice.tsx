@@ -330,12 +330,12 @@ function InvoicePaper({
               <span className="font-bold">{formatRupiah(order.shippingFee)}</span>
             </li>
           )}
-          {order.discount > 0 && (
-            <li className="flex justify-between gap-3">
-              <span>Voucher {order.voucherCode}</span>
-              <span className="font-bold">−{formatRupiah(order.discount)}</span>
+          {order.vouchers.map(({ code, discount }) => (
+            <li key={code} className="flex justify-between gap-3">
+              <span>Voucher {code}</span>
+              <span className="font-bold">−{formatRupiah(discount)}</span>
             </li>
-          )}
+          ))}
         </ul>
       )}
       <hr className="border-ube-line" />

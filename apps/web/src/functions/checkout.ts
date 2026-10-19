@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { insertCheckoutOrder, insertProof, loadCheckout, loadInvoice } from "./checkout.server";
 import { phoneSchema } from "./orders";
-import { voucherCodeSchema } from "./vouchers";
+import { voucherCodesSchema } from "./vouchers";
 
 /* -------------------------------------------------------------------------- */
 /*                               Shared schemas                               */
@@ -44,8 +44,8 @@ export const placeOrderSchema = z
       .trim()
       .max(MAX_NOTES_LENGTH, `Catatan maksimal ${MAX_NOTES_LENGTH} karakter.`)
       .optional(),
-    /** Applied voucher code; the discount is recomputed on the server. */
-    voucherCode: voucherCodeSchema.optional(),
+    /** Stacked voucher codes in the order applied; discounts are recomputed on the server. */
+    voucherCodes: voucherCodesSchema,
     termsAccepted: z.literal(true, "Setujui syarat preorder untuk melanjutkan."),
     drawOptIn: z.boolean(),
   })

@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { VOUCHER_CODE_PATTERN, normalizeVoucherCode } from "@/lib/vouchers";
+import { MAX_STACKED_VOUCHERS, VOUCHER_CODE_PATTERN, normalizeVoucherCode } from "@/lib/vouchers";
 import { requireAuthMiddleware } from "@/middleware/auth";
 
 import {
-  checkVoucherForCart,
+  checkVouchersForCart,
   listVouchersPage,
   removeVoucher,
   toggleVoucher,
@@ -23,6 +23,15 @@ export const voucherCodeSchema = z
     z
       .string()
       .regex(VOUCHER_CODE_PATTERN, "Kode voucher 3–32 karakter: huruf, angka, tanda - atau _."),
+  );
+
+/** Stacked voucher codes, in the order applied; one voucher cannot be stacked twice. */
+export const voucherCodesSchema = z
+  .array(voucherCodeSchema)
+  .max(MAX_STACKED_VOUCHERS, `Maksimal ${MAX_STACKED_VOUCHERS} voucher per pesanan.`)
+  .refine(
+    (codes) => new Set(codes).size === codes.length,
+    "Voucher yang sama tidak bisa dipakai dua kali.",
   );
 
 const rupiahSchema = (label: string) =>
@@ -123,7 +132,8 @@ export type SaveVoucherData = z.output<typeof saveVoucherSchema>;
 
 export const checkVoucherSchema = z.object({
   batchId: z.string().min(1),
-  code: voucherCodeSchema,
+  /** Every code to stack: those already applied plus the one being added. */
+  codes: voucherCodesSchema.min(1, "Kode voucher wajib diisi."),
   items: z
     .array(
       z.object({
@@ -167,7 +177,10 @@ export const deleteVoucher = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(({ data }) => removeVoucher(data.id));
 
-/** Public: previews a voucher's discount on a checkout cart; placement re-checks it. */
-export const checkVoucher = createServerFn({ method: "POST" })
+/**
+ * Public: previews the stacked discounts of voucher codes on a checkout cart, one result per
+ * code so a failing code does not drop the others; placement re-checks them.
+ */
+export const checkVouchers = createServerFn({ method: "POST" })
   .validator(checkVoucherSchema)
-  .handler(({ data }) => checkVoucherForCart(data));
+  .handler(({ data }) => checkVouchersForCart(data));

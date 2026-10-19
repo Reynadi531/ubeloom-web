@@ -52,7 +52,12 @@ const PICKUP_FALLBACK = "Lokasi pickup belum diatur";
 async function loadBatchOrders(batchId: string) {
   return db.query.order.findMany({
     where: { batchId },
-    with: { items: true, pickupSlot: true, deliveryZone: true },
+    with: {
+      items: true,
+      vouchers: { orderBy: { position: "asc" } },
+      pickupSlot: true,
+      deliveryZone: true,
+    },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -105,7 +110,7 @@ function toOrderView(row: LoadedOrder, orderBatch: BatchRow) {
     subtotal: row.subtotal,
     shippingFee: row.shippingFee,
     discount: row.discount,
-    voucherCode: row.voucherCode,
+    vouchers: row.vouchers.map(({ code, discount }) => ({ code, discount })),
     total: row.total,
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
@@ -267,7 +272,7 @@ export async function buildOrdersCsv(
       row.itemsSummary,
       row.subtotal,
       row.shippingFee,
-      row.voucherCode,
+      row.vouchers.map(({ code }) => code).join(", "),
       row.discount,
       row.total,
       paymentStatusLabels[row.paymentStatus],

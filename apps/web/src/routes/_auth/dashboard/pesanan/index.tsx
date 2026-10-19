@@ -360,7 +360,11 @@ function SelectedOrder({ order }: { order: OrderListRow }) {
       ? [
           {
             label: "Voucher",
-            value: `${order.voucherCode ?? "—"} · −${formatRupiah(order.discount)}`,
+            value: order.vouchers.length
+              ? order.vouchers
+                  .map(({ code, discount }) => `${code} −${formatRupiah(discount)}`)
+                  .join(", ")
+              : `−${formatRupiah(order.discount)}`,
           },
         ]
       : []),

@@ -267,13 +267,10 @@ export const order = pgTable(
     subtotal: rupiah("subtotal").notNull(),
     shippingFee: rupiah("shipping_fee").notNull().default(0),
     /**
-     * Voucher discount off the subtotal, or off ongkir for a `shipping` voucher (never above
-     * shippingFee); total = subtotal − discount + shippingFee.
+     * Sum of the stacked voucher discounts (see orderVoucher): product cuts never exceed the
+     * subtotal and ongkir cuts never exceed shippingFee; total = subtotal − discount + shippingFee.
      */
     discount: rupiah("discount").notNull().default(0),
-    voucherId: text("voucher_id").references(() => voucher.id, { onDelete: "set null" }),
-    /** Code snapshot so invoices keep it after the voucher is edited or deleted. */
-    voucherCode: text("voucher_code"),
     total: rupiah("total").notNull(),
     notes: text("notes"),
     /** Customer opted into the batch invoice draw. */
@@ -287,7 +284,28 @@ export const order = pgTable(
     index("order_batch_idx").on(table.batchId),
     index("order_payment_status_idx").on(table.paymentStatus),
     index("order_fulfillment_status_idx").on(table.fulfillmentStatus),
-    index("order_voucher_idx").on(table.voucherId),
+  ],
+);
+
+/** Voucher stacked on an order, in the order the customer applied them. */
+export const orderVoucher = pgTable(
+  "order_voucher",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    voucherId: text("voucher_id").references(() => voucher.id, { onDelete: "set null" }),
+    /** Code snapshot so invoices keep it after the voucher is edited or deleted. */
+    code: text("code").notNull(),
+    /** This voucher's share of order.discount. */
+    discount: rupiah("discount").notNull(),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    // A voucher is applied at most once per order.
+    uniqueIndex("order_voucher_order_code_idx").on(table.orderId, table.code),
+    index("order_voucher_voucher_idx").on(table.voucherId),
   ],
 );
 
@@ -478,6 +496,7 @@ export const shopRelations = defineRelationsPart(
     deliveryZone,
     order,
     orderItem,
+    orderVoucher,
     invoice,
     paymentAttempt,
     orderEvent,
@@ -522,10 +541,14 @@ export const shopRelations = defineRelationsPart(
       paymentAttempts: r.many.paymentAttempt({ from: r.order.id, to: r.paymentAttempt.orderId }),
       events: r.many.orderEvent({ from: r.order.id, to: r.orderEvent.orderId }),
       createdBy: r.one.user({ from: r.order.createdById, to: r.user.id }),
-      voucher: r.one.voucher({ from: r.order.voucherId, to: r.voucher.id }),
+      vouchers: r.many.orderVoucher({ from: r.order.id, to: r.orderVoucher.orderId }),
     },
     voucher: {
-      orders: r.many.order({ from: r.voucher.id, to: r.order.voucherId }),
+      orderVouchers: r.many.orderVoucher({ from: r.voucher.id, to: r.orderVoucher.voucherId }),
+    },
+    orderVoucher: {
+      order: r.one.order({ from: r.orderVoucher.orderId, to: r.order.id, optional: false }),
+      voucher: r.one.voucher({ from: r.orderVoucher.voucherId, to: r.voucher.id }),
     },
     orderItem: {
       order: r.one.order({ from: r.orderItem.orderId, to: r.order.id, optional: false }),

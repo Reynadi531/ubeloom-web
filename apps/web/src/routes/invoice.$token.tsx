@@ -202,12 +202,9 @@ function InvoiceComponent() {
                   label={isDelivery ? "Biaya pengiriman" : "Ongkir · ambil sendiri"}
                   amount={invoice.shippingFee}
                 />
-                {invoice.discount > 0 && (
-                  <InvoiceAmountRow
-                    label={`Voucher ${invoice.voucherCode ?? ""}`.trim()}
-                    amount={-invoice.discount}
-                  />
-                )}
+                {invoice.vouchers.map(({ code, discount }) => (
+                  <InvoiceAmountRow key={code} label={`Voucher ${code}`} amount={-discount} />
+                ))}
               </div>
               <hr className="border-ube-line" />
               <TotalRow label="Total yang harus dibayar" amount={invoice.total} />

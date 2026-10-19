@@ -3,7 +3,13 @@
  * `./checkout`. Customers have no account: the order's `accessToken` is the only key
  * to its invoice, so every lookup here goes through it.
  */
-import { order, orderEvent, orderItem, paymentAttempt } from "@web-kwu/db/schema/shop";
+import {
+  order,
+  orderEvent,
+  orderItem,
+  orderVoucher,
+  paymentAttempt,
+} from "@web-kwu/db/schema/shop";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
 
@@ -35,7 +41,7 @@ import {
   priceOrder,
   slotBookings,
 } from "./orders.server";
-import { redeemVoucher } from "./vouchers.server";
+import { redeemVouchers } from "./vouchers.server";
 import type { PlaceOrderData, SubmitProofData } from "./checkout";
 
 /** Customers pay within 24 hours of the invoice, never after the batch cutoff. */
@@ -160,9 +166,8 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
             courier: data.courier,
           });
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-        const applied = data.voucherCode
-          ? await redeemVoucher(tx, data.voucherCode, lines, shippingFee)
-          : { voucherId: null, voucherCode: null, discount: 0 };
+        const applied = await redeemVouchers(tx, data.voucherCodes, lines, shippingFee);
+        const discount = applied.reduce((sum, voucher) => sum + voucher.discount, 0);
         const isDelivery = data.method === "delivery";
 
         const [created] = await tx
@@ -183,23 +188,29 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
             paymentMethod: "QRIS",
             subtotal,
             shippingFee,
-            discount: applied.discount,
-            voucherId: applied.voucherId,
-            voucherCode: applied.voucherCode,
-            total: subtotal - applied.discount + shippingFee,
+            discount,
+            total: subtotal - discount + shippingFee,
             notes: data.notes || null,
             drawOptIn: data.drawOptIn,
           })
           .returning({ id: order.id, accessToken: order.accessToken });
 
         await tx.insert(orderItem).values(lines.map((line) => ({ ...line, orderId: created.id })));
+        if (applied.length > 0) {
+          await tx
+            .insert(orderVoucher)
+            .values(
+              applied.map((voucher, position) => ({ ...voucher, orderId: created.id, position })),
+            );
+        }
         await tx.insert(orderEvent).values({
           orderId: created.id,
           type: "created",
           toStatus: "pending",
-          note: applied.voucherCode
-            ? `Pesanan dari checkout storefront · QRIS · voucher ${applied.voucherCode} −${formatRupiah(applied.discount)}`
-            : "Pesanan dari checkout storefront · QRIS",
+          note: [
+            "Pesanan dari checkout storefront · QRIS",
+            ...applied.map(({ code, discount }) => `voucher ${code} −${formatRupiah(discount)}`),
+          ].join(" · "),
         });
         return { token: created.accessToken };
       });
@@ -222,6 +233,7 @@ export async function loadInvoice(token: string) {
     with: {
       batch: true,
       items: true,
+      vouchers: { orderBy: { position: "asc" } },
       pickupSlot: true,
       deliveryZone: true,
       paymentAttempts: { orderBy: { attempt: "desc" }, limit: 1 },
@@ -265,7 +277,7 @@ export async function loadInvoice(token: string) {
     subtotal: row.subtotal,
     shippingFee: row.shippingFee,
     discount: row.discount,
-    voucherCode: row.voucherCode,
+    vouchers: row.vouchers.map(({ code, discount }) => ({ code, discount })),
     total: row.total,
     paymentStatus: row.paymentStatus as PaymentStatus,
     cancelled,

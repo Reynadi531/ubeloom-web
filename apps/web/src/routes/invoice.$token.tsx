@@ -1,6 +1,6 @@
 import { Link, createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { Info, QrCode, Upload } from "lucide-react";
-import { type DragEvent, type FormEvent, useId, useState } from "react";
+import { Info, QrCode, Upload, X } from "lucide-react";
+import { type DragEvent, type FormEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { serverErrorMessage } from "@/components/admin/orders/form-errors";
@@ -237,10 +237,10 @@ function InvoiceComponent() {
               </p>
               {invoice.qrisImageUrl ? (
                 <div className="flex flex-col items-center gap-2 rounded-[10px] border border-ube-line bg-white p-3">
-                  <img
+                  <QrisZoom
                     src={invoice.qrisImageUrl}
                     alt={`QRIS ${invoice.merchantName || "ubeloom"}`}
-                    className="aspect-square w-full max-w-[280px] object-contain"
+                    total={total}
                   />
                   <a
                     href={invoice.qrisImageUrl}
@@ -316,6 +316,48 @@ function InvoiceAmountRow({ label, amount }: { label: string; amount: number }) 
       <p className="font-semibold">{label}</p>
       <p className="font-bold">{amount < 0 ? `−${formatRupiah(-amount)}` : formatRupiah(amount)}</p>
     </div>
+  );
+}
+
+/** QRIS thumbnail that opens a full-screen view, easier to scan from another phone. */
+function QrisZoom({ src, alt, total }: { src: string; alt: string; total: string }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => dialogRef.current?.showModal()}
+        aria-label="Perbesar QRIS"
+        className="w-full max-w-[280px] cursor-zoom-in rounded-[8px] focus-visible:outline-2 focus-visible:outline-deep-ube"
+      >
+        <img src={src} alt={alt} className="aspect-square w-full object-contain" />
+      </button>
+      <dialog
+        ref={dialogRef}
+        aria-label="QRIS diperbesar"
+        // Clicking the backdrop lands on the dialog element itself.
+        onClick={(event) => event.target === event.currentTarget && dialogRef.current?.close()}
+        className="m-auto w-[min(520px,calc(100vw-32px))] rounded-[16px] border border-ube-line bg-white p-5 font-body text-ink backdrop:bg-ink/70"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-data text-[10px] font-bold text-plum">PINDAI QRIS</p>
+          <button
+            type="button"
+            onClick={() => dialogRef.current?.close()}
+            aria-label="Tutup"
+            className="rounded-full p-1 text-deep-ube hover:text-ube-pop"
+          >
+            <X aria-hidden className="size-5" />
+          </button>
+        </div>
+        <img src={src} alt={alt} className="mt-3 aspect-square w-full object-contain" />
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
+          <p className="text-xs font-bold">Masukkan nominal tepat</p>
+          <p className="font-display text-2xl font-bold text-deep-ube">{total}</p>
+        </div>
+      </dialog>
+    </>
   );
 }
 

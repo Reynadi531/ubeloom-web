@@ -1,6 +1,6 @@
 import { Link, createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { Info, QrCode, Upload } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type DragEvent, type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { serverErrorMessage } from "@/components/admin/orders/form-errors";
@@ -336,8 +336,33 @@ function ProofUpload({ invoice }: { invoice: InvoiceData }) {
   const [reference, setReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
+  const [dragging, setDragging] = useState(false);
 
   const disabled = !invoice.canUpload || submitting;
+
+  const dragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    if (disabled) {
+      event.dataTransfer.dropEffect = "none";
+      return;
+    }
+    event.dataTransfer.dropEffect = "copy";
+    setDragging(true);
+  };
+
+  const dragLeave = (event: DragEvent<HTMLLabelElement>) => {
+    // Moving over the label's own children also fires dragleave.
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setDragging(false);
+  };
+
+  const drop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    if (disabled) return;
+    const dropped = event.dataTransfer.files[0];
+    if (dropped) setFile(dropped);
+  };
   const badge = invoice.latestProof ? proofBadges[invoice.latestProof.status] : "BELUM ADA BUKTI";
 
   const submit = async (event: FormEvent) => {
@@ -390,10 +415,19 @@ function ProofUpload({ invoice }: { invoice: InvoiceData }) {
             : "Unggah setelah membayar · JPG atau PNG · maks. 5 MB"}
       </p>
       <label
-        className={`flex h-[76px] items-center justify-center gap-3 rounded-[10px] border border-ube-line bg-vanilla px-4 text-[13px] font-bold text-deep-ube focus-within:border-deep-ube ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-deep-ube"}`}
+        onDragOver={dragOver}
+        onDragLeave={dragLeave}
+        onDrop={drop}
+        className={`flex h-[76px] items-center justify-center gap-3 rounded-[10px] border bg-vanilla px-4 text-[13px] font-bold text-deep-ube focus-within:border-deep-ube ${dragging ? "border-dashed border-deep-ube" : "border-ube-line"} ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-deep-ube"}`}
       >
         <Upload aria-hidden className="size-[22px] shrink-0" />
-        <span className="truncate">{file ? file.name : "Pilih foto bukti transfer"}</span>
+        <span className="truncate">
+          {dragging
+            ? "Lepaskan foto di sini"
+            : file
+              ? file.name
+              : "Pilih atau seret foto bukti transfer"}
+        </span>
         <input
           type="file"
           accept="image/jpeg,image/png"

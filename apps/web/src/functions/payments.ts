@@ -17,7 +17,9 @@ const RECENT_REJECTION_LIMIT = 5;
 /** Midnight WIB of the current day. */
 const startOfTodayWib = () => fromDateInputValue(toDateInputValue(new Date()));
 
-const normalizeReference = (value: string) => value.trim().toLowerCase();
+/** Placeholders like "-" or "..." carry no letter/digit and must never count as a reference. */
+const normalizeReference = (value: string) =>
+  /[\p{L}\p{N}]/u.test(value) ? value.trim().toLowerCase() : "";
 
 /** Everything the "Verifikasi pembayaran" page renders. */
 export const getPaymentReview = createServerFn({ method: "GET" })

@@ -336,8 +336,11 @@ export async function insertProof(data: SubmitProofData) {
       claimedAmount: target.total,
       claimedPaidAt: data.paidAt,
       // Without a typed reference, fall back to one unique to this invoice so the
-      // reuse check in approvePayment never matches another order.
-      customerReference: data.reference || `${target.invoiceNumber}#${next}`,
+      // reuse check in approvePayment never matches another order. Placeholders such
+      // as "-" count as no reference.
+      customerReference: /[\p{L}\p{N}]/u.test(data.reference)
+        ? data.reference
+        : `${target.invoiceNumber}#${next}`,
       proofKey: key,
     });
     await tx

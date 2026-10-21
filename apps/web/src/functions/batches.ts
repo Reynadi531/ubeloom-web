@@ -7,6 +7,7 @@ import {
   pickupSlot,
   product,
 } from "@web-kwu/db/schema/shop";
+import { closeOtherOpenBatches } from "@web-kwu/shop/catalog";
 import { and, count, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -141,12 +142,7 @@ export const saveBatch = createServerFn({ method: "POST" })
         ? await tx.update(batch).set(values).where(eq(batch.id, id)).returning()
         : await tx.insert(batch).values(values).returning();
       if (!saved) throw new Error("Batch tidak ditemukan");
-      if (saved.status === "open") {
-        await tx
-          .update(batch)
-          .set({ status: "closed" })
-          .where(and(eq(batch.status, "open"), ne(batch.id, saved.id)));
-      }
+      if (saved.status === "open") await closeOtherOpenBatches(tx, saved.id);
       return { id: saved.id };
     });
   });

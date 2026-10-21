@@ -3,6 +3,7 @@
  * number of non-cancelled orders holding it, so cancelling an order frees its use.
  */
 import { order, orderVoucher, voucher } from "@web-kwu/db/schema/shop";
+import { setVoucherActive } from "@web-kwu/shop/catalog";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { applyVouchers, type VoucherLine } from "@/lib/vouchers";
@@ -212,14 +213,8 @@ export async function upsertVoucher(data: SaveVoucherData, actorId: string) {
   }
 }
 
-export async function toggleVoucher(id: string, active: boolean) {
-  const [updated] = await db
-    .update(voucher)
-    .set({ active })
-    .where(eq(voucher.id, id))
-    .returning({ id: voucher.id });
-  if (!updated) throw new Error("Voucher tidak ditemukan.");
-  return { ok: true };
+export function toggleVoucher(id: string, active: boolean) {
+  return setVoucherActive(db, id, active);
 }
 
 export async function removeVoucher(id: string) {

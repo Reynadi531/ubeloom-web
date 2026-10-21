@@ -1,4 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { paymentChecklist, rejectionReasons } from "@web-kwu/shop/rules";
 import { AlertTriangle, Check, FileText, Image, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -31,20 +32,6 @@ export const Route = createFileRoute("/_auth/dashboard/verifikasi-bayar")({
   loader: () => getPaymentReview(),
   component: PaymentReviewComponent,
 });
-
-const checklist = [
-  "Nominal dan mata uang cocok dengan invoice",
-  "Mutasi merchant diterima dan waktunya sesuai",
-  "Referensi transaksi belum dipakai invoice lain",
-];
-
-const rejectionReasons = [
-  "Nominal tidak sesuai invoice",
-  "Mutasi merchant tidak ditemukan",
-  "Bukti tidak terbaca / tidak valid",
-  "Referensi sudah dipakai invoice lain",
-  "Lainnya",
-];
 
 const batchStatusLabels = {
   draft: "DRAF",
@@ -246,7 +233,7 @@ function PaymentDetail({
   merchantName: string;
 }) {
   const router = useRouter();
-  const [checked, setChecked] = useState<boolean[]>(() => checklist.map(() => false));
+  const [checked, setChecked] = useState<boolean[]>(() => paymentChecklist.map(() => false));
   const [merchantReference, setMerchantReference] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState(rejectionReasons[0]);
@@ -419,7 +406,7 @@ function PaymentDetail({
             <h3 id="approval-checklist-title" className="text-sm font-extrabold text-ink">
               Sebelum menyetujui
             </h3>
-            {checklist.map((item, index) => (
+            {paymentChecklist.map((item, index) => (
               <label
                 key={item}
                 className="flex cursor-pointer items-center gap-2 text-xs text-plum"

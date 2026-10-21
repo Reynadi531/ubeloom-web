@@ -3,29 +3,19 @@ import {
   batch,
   deliveryZone,
   order,
-  orderEvent,
   orderItem,
   paymentAttempt,
   pickupSlot,
 } from "@web-kwu/db/schema/shop";
+import { transitionOrderFulfillment } from "@web-kwu/shop/fulfillment";
+import { fulfillmentStatusValues } from "@web-kwu/shop/rules";
 import { and, asc, desc, eq, gte, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { resolveBatch } from "@/lib/batches.server";
-import { type FulfillmentStatus, canTransition } from "@/lib/orders";
+import type { FulfillmentStatus } from "@/lib/orders";
 import { requireAuthMiddleware } from "@/middleware/auth";
 import { db } from "@/services";
-
-const fulfillmentStatusValues = [
-  "pending",
-  "preparing",
-  "ready_pickup",
-  "picked_up",
-  "ready_delivery",
-  "in_transit",
-  "delivered",
-  "cancelled",
-] as const satisfies readonly FulfillmentStatus[];
 
 /**
  * Status filter on the fulfillment board. `awaiting_payment` covers every
@@ -258,8 +248,6 @@ export type ProductionRow = FulfillmentBoard["production"][number];
  * over (picked_up, in_transit, delivered) are logged as "handover" events; handing
  * a delivery to the courier (→ in_transit) requires the courier's name.
  */
-const handoverSteps: FulfillmentStatus[] = ["picked_up", "in_transit", "delivered"];
-
 export const transitionFulfillment = createServerFn({ method: "POST" })
   .middleware([requireAuthMiddleware])
   .validator(
@@ -272,54 +260,5 @@ export const transitionFulfillment = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const actorId = context.session.user.id;
-    const isHandover = handoverSteps.includes(data.to);
-    const handoverTo = data.handoverTo || undefined;
-    const note = data.note || undefined;
-    if (data.to === "in_transit" && !handoverTo) {
-      throw new Error("Isi nama kurir sebelum serah-terima.");
-    }
-
-    return db.transaction(async (tx) => {
-      const [current] = await tx
-        .select({ method: order.method, paymentStatus: order.paymentStatus })
-        .from(order)
-        .where(eq(order.id, data.orderId));
-      if (!current) throw new Error("Pesanan tidak ditemukan.");
-      if (!canTransition(current.method, current.paymentStatus, data.from, data.to)) {
-        throw new Error(
-          current.paymentStatus === "paid" || data.to === "cancelled"
-            ? "Perubahan status ini tidak diizinkan."
-            : "Pesanan belum lunas.",
-        );
-      }
-
-      const updated = await tx
-        .update(order)
-        .set({ fulfillmentStatus: data.to })
-        .where(
-          and(
-            eq(order.id, data.orderId),
-            eq(order.fulfillmentStatus, data.from),
-            // Payment must still be settled at write time (except for cancelling).
-            data.to === "cancelled" ? undefined : eq(order.paymentStatus, "paid"),
-          ),
-        )
-        .returning({ id: order.id });
-      if (updated.length === 0) {
-        throw new Error("Status pesanan sudah berubah. Muat ulang lalu coba lagi.");
-      }
-
-      await tx.insert(orderEvent).values({
-        orderId: data.orderId,
-        type: isHandover ? "handover" : "fulfillment_changed",
-        fromStatus: data.from,
-        toStatus: data.to,
-        handoverTo,
-        note,
-        actorId,
-      });
-
-      return { id: data.orderId, status: data.to };
-    });
+    return transitionOrderFulfillment(db, data, context.session.user.id);
   });

@@ -1,73 +1,24 @@
 /**
- * Order status vocabulary shared by every admin page. Enum values come from
- * `@web-kwu/db/schema/shop`; this module owns their labels and legal transitions.
+ * Order helpers shared by every admin page. The status vocabulary (types, labels and
+ * legal transitions) now lives in `@web-kwu/shop/rules` and is re-exported here.
  */
 
-export type FulfillmentMethod = "pickup" | "delivery";
-export type PaymentStatus = "unpaid" | "review" | "paid";
-export type FulfillmentStatus =
-  | "pending"
-  | "preparing"
-  | "ready_pickup"
-  | "picked_up"
-  | "ready_delivery"
-  | "in_transit"
-  | "delivered"
-  | "cancelled";
-export type PaymentAttemptStatus = "pending" | "approved" | "rejected";
+export type {
+  FulfillmentMethod,
+  FulfillmentStatus,
+  PaymentAttemptStatus,
+  PaymentStatus,
+} from "@web-kwu/shop/rules";
+export {
+  canTransition,
+  fulfillmentStatusLabels,
+  fulfillmentTransitions,
+  methodLabels,
+  paymentStatusLabels,
+} from "@web-kwu/shop/rules";
 
 /** Cash is always offered on manual orders; it skips the review queue. */
 export const CASH_PAYMENT_METHOD = "Tunai";
-
-export const methodLabels: Record<FulfillmentMethod, string> = {
-  pickup: "Pickup",
-  delivery: "Delivery",
-};
-
-export const paymentStatusLabels: Record<PaymentStatus, string> = {
-  unpaid: "Belum bayar",
-  review: "Review",
-  paid: "Lunas",
-};
-
-export const fulfillmentStatusLabels: Record<FulfillmentStatus, string> = {
-  pending: "Menunggu",
-  preparing: "Disiapkan",
-  ready_pickup: "Siap diambil",
-  picked_up: "Selesai",
-  ready_delivery: "Siap dikirim",
-  in_transit: "Dalam perjalanan",
-  delivered: "Terkirim",
-  cancelled: "Dibatalkan",
-};
-
-/** Next fulfillment steps an admin may take. Production starts only after payment. */
-export const fulfillmentTransitions: Record<
-  FulfillmentMethod,
-  Partial<Record<FulfillmentStatus, FulfillmentStatus[]>>
-> = {
-  pickup: {
-    pending: ["preparing", "cancelled"],
-    preparing: ["ready_pickup", "cancelled"],
-    ready_pickup: ["picked_up"],
-  },
-  delivery: {
-    pending: ["preparing", "cancelled"],
-    preparing: ["ready_delivery", "cancelled"],
-    ready_delivery: ["in_transit"],
-    in_transit: ["delivered"],
-  },
-};
-
-export function canTransition(
-  method: FulfillmentMethod,
-  paymentStatus: PaymentStatus,
-  from: FulfillmentStatus,
-  to: FulfillmentStatus,
-) {
-  if (to !== "cancelled" && paymentStatus !== "paid") return false;
-  return fulfillmentTransitions[method][from]?.includes(to) ?? false;
-}
 
 const INVOICE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 

@@ -1,0 +1,18 @@
+{
+  "name": "@web-kwu/shop",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@web-kwu/db": "workspace:*",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@web-kwu/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

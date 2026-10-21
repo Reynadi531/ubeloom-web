@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import type { z } from "zod";
 
 export const fieldClassName =
-  "w-full rounded-lg border border-ube-line bg-white px-3 text-xs text-ink outline-none transition-colors focus:border-ube-pop";
+  "w-full rounded-lg border border-ube-line bg-white px-3 text-sm text-ink outline-none transition-colors focus:border-ube-pop";
 export const inputClassName = `${fieldClassName} h-[41px] font-medium`;
 export const primaryButtonClassName =
-  "flex items-center justify-center gap-2 rounded-[9px] bg-deep-ube px-[18px] py-3 text-xs/[15px] font-bold text-white transition-colors hover:bg-ube-pop disabled:opacity-50";
+  "flex items-center justify-center gap-2 rounded-[9px] bg-deep-ube px-[18px] py-3 text-sm/[15px] font-bold text-white transition-colors hover:bg-ube-pop disabled:opacity-50";
 export const secondaryButtonClassName =
-  "flex items-center justify-center gap-1.5 rounded-[7px] border border-ube-line px-[11px] py-2 text-[11px]/[14px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:opacity-50";
+  "flex items-center justify-center gap-1.5 rounded-[7px] border border-ube-line px-[11px] py-2 text-[13px]/[14px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:opacity-50";
 
 export function Field({
   label,
@@ -22,9 +22,9 @@ export function Field({
 }) {
   return (
     <label className="flex min-w-0 flex-col gap-1.5">
-      <span className="text-[11px] font-bold text-ink">{label}</span>
+      <span className="text-[13px] font-bold text-ink">{label}</span>
       {children}
-      {hint && <span className="text-[10px] text-plum">{hint}</span>}
+      {hint && <span className="text-xs text-plum">{hint}</span>}
     </label>
   );
 }
@@ -100,7 +100,7 @@ export function AdminDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-[5px]">
               <h2 className="font-display text-[19px]/[1.2] font-bold text-ink">{title}</h2>
-              {description && <p className="text-[11px] text-plum">{description}</p>}
+              {description && <p className="text-[13px] text-plum">{description}</p>}
             </div>
             <button
               type="button"

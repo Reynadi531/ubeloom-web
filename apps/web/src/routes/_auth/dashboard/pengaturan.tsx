@@ -23,10 +23,10 @@ export const Route = createFileRoute("/_auth/dashboard/pengaturan")({
 });
 
 const cardClassName = "flex flex-col gap-4 rounded-xl border border-ube-line bg-white p-[18px]";
-const fieldLabelClassName = "text-[10px] font-bold text-plum";
-const fieldErrorClassName = "text-[10px] font-semibold text-[#b42318]";
+const fieldLabelClassName = "text-xs font-bold text-plum";
+const fieldErrorClassName = "text-xs font-semibold text-[#b42318]";
 const inputClassName =
-  "h-[42px] w-full rounded-lg border border-ube-line bg-surface px-[11px] text-xs text-ink outline-none transition-colors focus:border-ube-pop";
+  "h-[42px] w-full rounded-lg border border-ube-line bg-surface px-[11px] text-sm text-ink outline-none transition-colors focus:border-ube-pop";
 
 function SettingsComponent() {
   const settings = Route.useLoaderData();
@@ -120,7 +120,7 @@ function SettingsComponent() {
               onChange={(event) => setQrisMerchantName(event.target.value)}
               className={inputClassName}
             />
-            <span className="text-[10px] text-plum">
+            <span className="text-xs text-plum">
               Pelanggan dan peninjau mencocokkan nama ini. Kosong = tampil "belum diatur".
             </span>
             {errors.qrisMerchantName && (
@@ -168,7 +168,7 @@ function SettingsComponent() {
               <button
                 type="button"
                 onClick={() => setPaymentMethods((current) => [...current, ""])}
-                className="flex w-fit items-center gap-1.5 text-[11px] font-bold text-deep-ube hover:text-ube-pop"
+                className="flex w-fit items-center gap-1.5 text-[13px] font-bold text-deep-ube hover:text-ube-pop"
               >
                 <Plus className="size-3.5" />
                 Tambah metode bayar
@@ -207,7 +207,7 @@ function SettingsComponent() {
         <button
           type="submit"
           disabled={saving}
-          className="w-fit rounded-full bg-deep-ube px-5 py-3 text-xs font-bold text-vanilla transition-colors hover:bg-ube-pop disabled:opacity-60"
+          className="w-fit rounded-full bg-deep-ube px-5 py-3 text-sm font-bold text-vanilla transition-colors hover:bg-ube-pop disabled:opacity-60"
         >
           {saving ? "Menyimpan…" : "Simpan pengaturan"}
         </button>
@@ -252,7 +252,7 @@ function FeeListField({
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className={`${fieldLabelClassName} mb-1.5`}>{legend}</legend>
-      <span className="text-[10px] text-plum">{hint}</span>
+      <span className="text-xs text-plum">{hint}</span>
       {rows.map((row, index) => (
         <div key={index} className="flex items-center gap-2">
           <input
@@ -264,7 +264,7 @@ function FeeListField({
             className={inputClassName}
           />
           <div className="relative w-[140px] shrink-0">
-            <span className="pointer-events-none absolute top-1/2 left-[11px] -translate-y-1/2 text-xs text-plum">
+            <span className="pointer-events-none absolute top-1/2 left-[11px] -translate-y-1/2 text-sm text-plum">
               Rp
             </span>
             <input
@@ -292,7 +292,7 @@ function FeeListField({
         <button
           type="button"
           onClick={() => onChange((current) => [...current, { name: "", fee: "" }])}
-          className="flex w-fit items-center gap-1.5 text-[11px] font-bold text-deep-ube hover:text-ube-pop"
+          className="flex w-fit items-center gap-1.5 text-[13px] font-bold text-deep-ube hover:text-ube-pop"
         >
           <Plus className="size-3.5" />
           {addLabel}
@@ -366,7 +366,7 @@ function QrisImageField({ imageKey }: { imageKey: string | null }) {
           )}
         </div>
         <div className="flex flex-col gap-2">
-          <span className="max-w-[320px] text-[10px] text-plum">
+          <span className="max-w-[320px] text-xs text-plum">
             Tampil di invoice untuk dipindai pelanggan. JPG, PNG atau WEBP, maksimal{" "}
             {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB. Perubahan langsung berlaku.
           </span>
@@ -381,7 +381,7 @@ function QrisImageField({ imageKey }: { imageKey: string | null }) {
           <label
             htmlFor={inputId}
             aria-disabled={busy}
-            className="flex w-fit cursor-pointer items-center gap-1.5 rounded-full border-[1.5px] border-deep-ube px-4 py-2 text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla aria-disabled:pointer-events-none aria-disabled:opacity-60"
+            className="flex w-fit cursor-pointer items-center gap-1.5 rounded-full border-[1.5px] border-deep-ube px-4 py-2 text-[13px] font-bold text-deep-ube transition-colors hover:bg-vanilla aria-disabled:pointer-events-none aria-disabled:opacity-60"
           >
             <ImagePlus className="size-3.5" />
             {busy ? "Memproses…" : imageKey ? "Ganti QRIS" : "Unggah QRIS"}
@@ -391,7 +391,7 @@ function QrisImageField({ imageKey }: { imageKey: string | null }) {
               type="button"
               disabled={busy}
               onClick={remove}
-              className="flex w-fit items-center gap-1.5 text-[11px] font-bold text-plum hover:text-[#b42318] disabled:opacity-60"
+              className="flex w-fit items-center gap-1.5 text-[13px] font-bold text-plum hover:text-[#b42318] disabled:opacity-60"
             >
               <Trash2 className="size-3.5" />
               Hapus QRIS

@@ -40,10 +40,10 @@ const batchStatusLabels: Record<BatchInfo["status"], string> = {
 
 const cardClassName = "rounded-[13px] p-5";
 const fieldBoxClassName =
-  "flex w-full items-center gap-1 rounded-lg bg-vanilla px-3 py-[9px] text-xs/[15px] font-bold text-ink transition-shadow focus-within:ring-2 focus-within:ring-ube-pop/30";
+  "flex w-full items-center gap-1 rounded-lg bg-vanilla px-3 py-[9px] text-sm/[15px] font-bold text-ink transition-shadow focus-within:ring-2 focus-within:ring-ube-pop/30";
 const fieldInputClassName = "min-w-0 flex-1 bg-transparent outline-none";
 const primaryButtonClassName =
-  "rounded-full border border-transparent bg-deep-ube px-4 py-3 text-[11px] font-bold text-vanilla transition-colors enabled:hover:bg-ube-pop disabled:cursor-not-allowed disabled:border-ube-line disabled:bg-vanilla disabled:text-plum";
+  "rounded-full border border-transparent bg-deep-ube px-4 py-3 text-[13px] font-bold text-vanilla transition-colors enabled:hover:bg-ube-pop disabled:cursor-not-allowed disabled:border-ube-line disabled:bg-vanilla disabled:text-plum";
 
 const wibInputFormatter = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Asia/Jakarta",
@@ -115,7 +115,7 @@ function DrawComponent() {
       )}
 
       <footer className="border-t border-ube-line pt-[13px]">
-        <p className="max-w-[900px] text-[11px] text-plum">
+        <p className="max-w-[900px] text-[13px] text-plum">
           Hasil publik hanya menampilkan nomor invoice dan hadiah. Reviewer melihat agregat; kontak,
           bukti dan tautan privat tetap tersembunyi.
         </p>
@@ -149,7 +149,7 @@ function Notice({
       <CalendarClock aria-hidden className="size-5 shrink-0 text-deep-ube" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <p className="text-[15px] font-extrabold text-ink">{title}</p>
-        <p className="text-[11px] text-plum">{description}</p>
+        <p className="text-[13px] text-plum">{description}</p>
       </div>
       {action}
     </div>
@@ -343,7 +343,7 @@ function DrawWorkspace({ batch, pool, draw }: { batch: BatchInfo; pool: Pool; dr
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-extrabold text-ink">Aturan &amp; hadiah</h2>
-              <p className="font-data text-[10px] font-bold text-plum">
+              <p className="font-data text-xs font-bold text-plum">
                 VERSI {draw.rulesVersion}
                 {editable ? "" : " · TERKUNCI"}
               </p>
@@ -425,7 +425,7 @@ function DrawWorkspace({ batch, pool, draw }: { batch: BatchInfo; pool: Pool; dr
               {prizes.map((prize, index) => {
                 const rank = String(index + 1).padStart(2, "0");
                 return (
-                  <li key={rank} className="flex items-center justify-between gap-4 text-[11px]">
+                  <li key={rank} className="flex items-center justify-between gap-4 text-[13px]">
                     <span className="font-extrabold text-deep-ube">{rank}</span>
                     <input
                       aria-label={`Hadiah ${rank}`}
@@ -452,7 +452,7 @@ function DrawWorkspace({ batch, pool, draw }: { batch: BatchInfo; pool: Pool; dr
                       setRules(initialRules);
                       setPrizes(initialPrizes);
                     }}
-                    className="text-[11px] font-semibold text-plum transition-colors hover:text-deep-ube"
+                    className="text-[13px] font-semibold text-plum transition-colors hover:text-deep-ube"
                   >
                     Batalkan
                   </button>
@@ -491,12 +491,12 @@ function DrawWorkspace({ batch, pool, draw }: { batch: BatchInfo; pool: Pool; dr
                   <li key={step} className="flex w-fit items-center gap-2.5">
                     <span
                       aria-hidden
-                      className={`flex size-[22px] shrink-0 items-center justify-center rounded-md text-[10px] font-extrabold transition-colors ${done ? "bg-deep-ube text-vanilla" : "bg-ube-gold text-ink"}`}
+                      className={`flex size-[22px] shrink-0 items-center justify-center rounded-md text-xs font-extrabold transition-colors ${done ? "bg-deep-ube text-vanilla" : "bg-ube-gold text-ink"}`}
                     >
                       {done ? <Check className="size-3" strokeWidth={3} /> : index + 1}
                     </span>
                     <span
-                      className={`text-[11px] font-semibold ${done ? "text-ink" : "text-plum"}`}
+                      className={`text-[13px] font-semibold ${done ? "text-ink" : "text-plum"}`}
                     >
                       {step}
                       <span className="sr-only">{done ? " · selesai" : " · belum"}</span>
@@ -588,9 +588,9 @@ function PoolPreview({ draw, pool }: { draw: Draw; pool: Pool }) {
   if (draw.status === "draft") {
     return (
       <>
-        <h2 className="text-[10px] font-extrabold text-deep-ube">PRATINJAU · BELUM DIBEKUKAN</h2>
+        <h2 className="text-xs font-extrabold text-deep-ube">PRATINJAU · BELUM DIBEKUKAN</h2>
         <p className="text-[31px]/[1.2] font-extrabold text-deep-ube">{pool.optedIn} invoice</p>
-        <p className="text-[11px]/[1.45] text-plum">
+        <p className="text-[13px]/[1.45] text-plum">
           Angka ini dapat berubah. Pool final hanya memuat pesanan lunas, opt-in, dan tidak
           dibatalkan.
         </p>
@@ -600,7 +600,7 @@ function PoolPreview({ draw, pool }: { draw: Draw; pool: Pool }) {
   const drawn = draw.status === "drawn" && draw.drawnAt;
   return (
     <>
-      <h2 className="text-[10px] font-extrabold text-deep-ube">
+      <h2 className="text-xs font-extrabold text-deep-ube">
         {drawn
           ? `POOL FINAL · DIUNDI ${formatDateTime(drawn).toUpperCase()}`
           : `DIBEKUKAN · ${draw.frozenAt ? formatDateTime(draw.frozenAt).toUpperCase() : ""}`}
@@ -608,7 +608,7 @@ function PoolPreview({ draw, pool }: { draw: Draw; pool: Pool }) {
       <p className="text-[31px]/[1.2] font-extrabold text-deep-ube">
         {draw.frozenPoolSize ?? 0} invoice
       </p>
-      <p className="text-[11px]/[1.45] text-plum">
+      <p className="text-[13px]/[1.45] text-plum">
         Pool terkunci bersama aturan versi {draw.rulesVersion}. Kelayakan setiap invoice dicek ulang
         saat pengundian; pesanan yang dibatalkan gugur. Angka di bawah tetap langsung.
       </p>
@@ -621,13 +621,13 @@ function Winners({ winners }: { winners: Draw["winners"] }) {
     <section className={`${cardClassName} flex flex-col gap-3 border border-ube-line bg-surface`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-extrabold text-ink">Pemenang</h2>
-        <p className="text-[11px] text-plum">Tersimpan di server · nama pelanggan disamarkan</p>
+        <p className="text-[13px] text-plum">Tersimpan di server · nama pelanggan disamarkan</p>
       </div>
       <ol className="flex flex-col">
         {winners.map(({ position, invoiceNumber, customer, prize }) => (
           <li
             key={position}
-            className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 border-t border-ube-line py-2.5 text-[11px] sm:grid-cols-[auto_1fr_1fr_auto]"
+            className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 border-t border-ube-line py-2.5 text-[13px] sm:grid-cols-[auto_1fr_1fr_auto]"
           >
             <span className="font-extrabold text-deep-ube">
               {String(position).padStart(2, "0")}
@@ -655,11 +655,11 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-[5px]">
-      <label htmlFor={id} className="text-[10px] font-bold text-plum">
+      <label htmlFor={id} className="text-xs font-bold text-plum">
         {label}
       </label>
       <div className={fieldBoxClassName}>{children}</div>
-      <p id={`${id}-help`} className="text-[10px] text-plum">
+      <p id={`${id}-help`} className="text-xs text-plum">
         {help}
       </p>
     </div>
@@ -669,8 +669,8 @@ function Field({
 function PoolCount({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <dt className="text-[11px] text-plum">{label}</dt>
-      <dd className="text-xs font-extrabold text-ink">{value}</dd>
+      <dt className="text-[13px] text-plum">{label}</dt>
+      <dd className="text-sm font-extrabold text-ink">{value}</dd>
     </div>
   );
 }

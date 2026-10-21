@@ -160,14 +160,14 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
     <AdminPage>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-bold tracking-[1.2px] whitespace-pre text-ube-pop">
+          <p className="text-xs font-bold tracking-[1.2px] whitespace-pre text-ube-pop">
             <Link to="/dashboard/batch-produk" className="transition-colors hover:text-deep-ube">
               BATCH &amp; PRODUK
             </Link>
             {"   /   DETAIL PRODUK"}
           </p>
           <h1 className="font-display text-[29px]/[1.2] font-bold text-ink">Edit detail produk</h1>
-          <p className="text-xs text-plum">
+          <p className="text-sm text-plum">
             Atur informasi yang tampil di halaman produk pelanggan.
           </p>
         </div>
@@ -177,7 +177,7 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
             params={{ slug: content.slug }}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-[7px] rounded-[9px] border border-ube-line px-4 py-[11px] text-xs/[15px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
+            className="flex items-center gap-[7px] rounded-[9px] border border-ube-line px-4 py-[11px] text-sm/[15px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
           >
             <ExternalLink className="size-[15px]" />
             Lihat halaman
@@ -186,7 +186,7 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
             type="button"
             onClick={save}
             disabled={saving || uploading > 0}
-            className="flex items-center gap-2 rounded-[9px] bg-deep-ube px-[18px] py-3 text-xs/[15px] font-bold text-white transition-colors hover:bg-ube-pop disabled:opacity-50"
+            className="flex items-center gap-2 rounded-[9px] bg-deep-ube px-[18px] py-3 text-sm/[15px] font-bold text-white transition-colors hover:bg-ube-pop disabled:opacity-50"
           >
             <Save className="size-[15px]" />
             {saving ? "Menyimpan…" : uploading > 0 ? "Mengunggah foto…" : "Simpan perubahan"}
@@ -210,7 +210,7 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
               aria-selected={active}
               aria-controls={`${tabsId}-${id}-panel`}
               onClick={() => setActiveTab(id)}
-              className={`flex shrink-0 flex-col gap-3 px-0.5 pb-3.5 text-xs/[15px] whitespace-nowrap transition-colors ${active ? "font-bold text-deep-ube" : "font-semibold text-plum hover:text-deep-ube"}`}
+              className={`flex shrink-0 flex-col gap-3 px-0.5 pb-3.5 text-sm/[15px] whitespace-nowrap transition-colors ${active ? "font-bold text-deep-ube" : "font-semibold text-plum hover:text-deep-ube"}`}
             >
               {label}
               <span
@@ -270,7 +270,7 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
         </div>
       </div>
 
-      <p className="flex items-center gap-2 border-t border-ube-line pt-4 text-[11px] text-plum">
+      <p className="flex items-center gap-2 border-t border-ube-line pt-4 text-[13px] text-plum">
         <CircleAlert aria-hidden className="size-4 shrink-0 text-ube-pop" />
         Pratinjau memperlihatkan konten saat ini. Simpan perubahan untuk memperbarui halaman produk
         yang tayang.
@@ -283,7 +283,7 @@ function SectionTitle({ title, description }: { title: string; description: stri
   return (
     <div className="flex flex-col gap-[5px]">
       <h2 className="font-display text-[19px]/[1.2] font-bold text-ink">{title}</h2>
-      <p className="text-[11px] text-plum">{description}</p>
+      <p className="text-[13px] text-plum">{description}</p>
     </div>
   );
 }
@@ -353,7 +353,7 @@ function InfoTab({
         <textarea
           value={content.description}
           onChange={(event) => update("description", event.target.value)}
-          className={`${fieldClassName} h-[91px] resize-none py-3 text-xs/[1.45]`}
+          className={`${fieldClassName} h-[91px] resize-none py-3 text-sm/[1.45]`}
         />
       </Field>
 
@@ -465,7 +465,7 @@ function DisplayTab({
               <textarea
                 value={item.description}
                 onChange={(event) => set({ ...item, description: event.target.value })}
-                className={`${fieldClassName} h-[64px] resize-none py-2.5 text-xs/[1.45]`}
+                className={`${fieldClassName} h-[64px] resize-none py-2.5 text-sm/[1.45]`}
               />
             </Field>
           </>
@@ -499,17 +499,17 @@ function ListEditor<T extends { icon: ProductIcon }>({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-bold text-ink">{title}</p>
+        <p className="text-[13px] font-bold text-ink">{title}</p>
         <button
           type="button"
           disabled={items.length >= max}
           onClick={() => onChange([...items, create()])}
-          className="text-[11px] font-bold text-deep-ube transition-colors hover:text-ube-pop disabled:opacity-40"
+          className="text-[13px] font-bold text-deep-ube transition-colors hover:text-ube-pop disabled:opacity-40"
         >
           {addLabel}
         </button>
       </div>
-      {items.length === 0 && <p className="text-[11px] text-plum">Belum ada isi.</p>}
+      {items.length === 0 && <p className="text-[13px] text-plum">Belum ada isi.</p>}
       {items.map((item, index) => (
         <div
           // Rows have no stable id; index keys are fine since rows only append/remove.
@@ -554,7 +554,7 @@ function AvailabilityTab({
     return (
       <section className="flex flex-col gap-[5px] rounded-xl border border-dashed border-ube-line px-5 py-10 text-center">
         <h2 className="font-display text-[19px]/[1.2] font-bold text-ink">Belum ada batch</h2>
-        <p className="text-[11px] text-plum">
+        <p className="text-[13px] text-plum">
           Buat batch di halaman Batch &amp; produk untuk mengatur kapasitas dan harga batch.
         </p>
       </section>
@@ -621,7 +621,7 @@ function AvailabilityTab({
               />
             </Field>
           </div>
-          <p className="flex items-center gap-[7px] rounded-lg bg-vanilla px-3 py-[11px] text-[11px] font-bold text-deep-ube">
+          <p className="flex items-center gap-[7px] rounded-lg bg-vanilla px-3 py-[11px] text-[13px] font-bold text-deep-ube">
             <Info aria-hidden className="size-3.5 shrink-0" />
             {batch.sold} {unit} terpesan
             {capacity == null ? "" : ` · ${Math.max(0, capacity - batch.sold)} ${unit} tersisa`}
@@ -650,7 +650,7 @@ function SwitchRow({
         <p id={titleId} className="text-[13px] font-bold text-ink">
           {title}
         </p>
-        <p className="text-[11px]/[1.45] text-plum">{description}</p>
+        <p className="text-[13px]/[1.45] text-plum">{description}</p>
       </div>
       <Switch checked={checked} onToggle={onToggle} labelledBy={titleId} />
     </div>
@@ -711,7 +711,7 @@ function SelectedProduct({
         />
         <div className="flex min-w-0 flex-col gap-[3px]">
           <h2 className="truncate text-base/[1.25] font-bold text-ink">{name}</h2>
-          <p className="text-[11px] whitespace-pre text-plum">
+          <p className="text-[13px] whitespace-pre text-plum">
             {code}
             {"  ·  "}
             {category}
@@ -719,14 +719,14 @@ function SelectedProduct({
         </div>
       </div>
       <div className="flex items-center gap-3.5">
-        <p className="flex items-center gap-1.5 rounded-[7px] bg-[#f5edf3] px-2.5 py-[7px] text-[11px]/[14px] font-bold text-deep-ube">
+        <p className="flex items-center gap-1.5 rounded-[7px] bg-[#f5edf3] px-2.5 py-[7px] text-[13px]/[14px] font-bold text-deep-ube">
           <span
             aria-hidden
             className={`size-1.5 rounded-full ${published ? "bg-ube-pop" : "bg-plum"}`}
           />
           {published ? "Tayang" : "Draf"}
         </p>
-        <label className="relative flex items-center gap-[15px] rounded-lg border border-ube-line px-3 py-2.5 text-xs/[15px] font-semibold text-ink transition-colors focus-within:border-ube-pop hover:bg-vanilla">
+        <label className="relative flex items-center gap-[15px] rounded-lg border border-ube-line px-3 py-2.5 text-sm/[15px] font-semibold text-ink transition-colors focus-within:border-ube-pop hover:bg-vanilla">
           Ganti produk
           <ChevronDown aria-hidden className="size-[15px] text-plum" />
           <select
@@ -774,9 +774,9 @@ function LivePreview({
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-base/[1.2] font-bold text-ink">Pratinjau halaman</h2>
-          <p className="text-[11px] text-plum">Tampilan desktop untuk pelanggan</p>
+          <p className="text-[13px] text-plum">Tampilan desktop untuk pelanggan</p>
         </div>
-        <span className="rounded-md bg-[#f5edf3] px-[9px] py-1.5 text-[9px]/[11px] font-bold tracking-[0.7px] text-deep-ube">
+        <span className="rounded-md bg-[#f5edf3] px-[9px] py-1.5 text-[11px]/[11px] font-bold tracking-[0.7px] text-deep-ube">
           LIVE PREVIEW
         </span>
       </div>
@@ -790,19 +790,19 @@ function LivePreview({
           className="h-[210px] w-full object-cover"
         />
         <div className="flex flex-col gap-[9px] px-5 py-[19px]">
-          <p className="text-[9px] font-bold tracking-[0.5px] whitespace-pre text-ube-pop">
+          <p className="text-[11px] font-bold tracking-[0.5px] whitespace-pre text-ube-pop">
             {collection}
           </p>
           <p className="font-display text-2xl/[1.2] font-bold break-words text-deep-ube">{name}</p>
-          <p className="text-xs font-semibold text-ink">{tagline}</p>
+          <p className="text-sm font-semibold text-ink">{tagline}</p>
           <p className="font-data text-base font-bold whitespace-pre-wrap text-deep-ube">
             {`${price}  / ${unit.toLowerCase()}`}
           </p>
           <span aria-hidden className="h-px bg-ube-line" />
-          <p className="text-[11px]/[1.5] break-words text-plum">{description}</p>
+          <p className="text-[13px]/[1.5] break-words text-plum">{description}</p>
           <span
             aria-hidden
-            className="flex h-9 items-center justify-center rounded-full bg-deep-ube text-[11px] font-bold whitespace-pre text-white"
+            className="flex h-9 items-center justify-center rounded-full bg-deep-ube text-[13px] font-bold whitespace-pre text-white"
           >
             {"Pesan sekarang  →"}
           </span>
@@ -823,12 +823,12 @@ function PublicationStatus({ published, onToggle }: { published: boolean; onTogg
         </h2>
         <Switch checked={published} onToggle={onToggle} labelledBy={titleId} />
       </div>
-      <p className="text-[11px]/[1.45] text-plum">
+      <p className="text-[13px]/[1.45] text-plum">
         {published
           ? "Produk ini tampil di katalog dan bisa dipesan selama batch preorder dibuka."
           : "Produk ini disembunyikan dari katalog dan tidak bisa dipesan pelanggan."}
       </p>
-      <p className="flex items-center gap-[7px] text-[10px] text-plum">
+      <p className="flex items-center gap-[7px] text-xs text-plum">
         <Info aria-hidden className="size-3.5 shrink-0" />
         Simpan perubahan untuk memperbarui halaman.
       </p>
@@ -840,16 +840,16 @@ function ProductNotFound() {
   return (
     <AdminPage>
       <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-ube-line px-5 py-10">
-        <p className="text-[10px] font-bold tracking-[1.2px] text-ube-pop">BATCH &amp; PRODUK</p>
+        <p className="text-xs font-bold tracking-[1.2px] text-ube-pop">BATCH &amp; PRODUK</p>
         <h1 className="font-display text-[24px]/[1.2] font-bold text-ink">
           Produk tidak ditemukan
         </h1>
-        <p className="text-[11px] text-plum">
+        <p className="text-[13px] text-plum">
           Produk dengan alamat ini tidak ada atau sudah diganti namanya.
         </p>
         <Link
           to="/dashboard/batch-produk"
-          className="text-[11px] font-bold text-deep-ube transition-colors hover:text-ube-pop"
+          className="text-[13px] font-bold text-deep-ube transition-colors hover:text-ube-pop"
         >
           {"← Kembali ke batch & produk"}
         </Link>

@@ -51,7 +51,7 @@ const at = (value: Date) => `${formatDayMonth(value)}, ${formatTime(value)} WIB`
 
 const cardClassName = "rounded-[13px] border border-ube-line bg-surface";
 const textActionClassName =
-  "w-fit text-[11px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop";
+  "w-fit text-[13px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop";
 
 function BatchProductsComponent() {
   const { current, products, deliveryAreas } = Route.useLoaderData();
@@ -143,7 +143,7 @@ function BatchProductsComponent() {
             Slot pickup
             {!batch.pickupEnabled && <MethodOffBadge />}
           </h2>
-          <p className="text-[11px] text-plum">
+          <p className="text-[13px] text-plum">
             Lokasi utama: {batch.pickupLocation || "belum diatur"}
           </p>
           <ul className="flex flex-col gap-[13px]">
@@ -153,18 +153,18 @@ function BatchProductsComponent() {
                 className="flex items-center justify-between gap-3 rounded-lg bg-vanilla px-3 py-[11px]"
               >
                 <div className="flex flex-col gap-[3px]">
-                  <span className="text-[11px] font-bold text-ink">
+                  <span className="text-[13px] font-bold text-ink">
                     {formatWeekday(slot.startsAt)}, {formatWindow(slot.startsAt, slot.endsAt)}
                   </span>
-                  {slot.location && <span className="text-[10px] text-plum">{slot.location}</span>}
+                  {slot.location && <span className="text-xs text-plum">{slot.location}</span>}
                 </div>
-                <span className="shrink-0 text-[10px] font-bold text-deep-ube">
+                <span className="shrink-0 text-xs font-bold text-deep-ube">
                   {slot.filled} / {slot.capacity} terisi{slot.active ? "" : " · nonaktif"}
                 </span>
               </li>
             ))}
             {slots.length === 0 && (
-              <li className="text-[11px] text-plum">Belum ada slot pickup.</li>
+              <li className="text-[13px] text-plum">Belum ada slot pickup.</li>
             )}
           </ul>
           <button type="button" onClick={() => setDialog("slots")} className={textActionClassName}>
@@ -177,7 +177,7 @@ function BatchProductsComponent() {
             Jadwal delivery
             {!batch.deliveryEnabled && <MethodOffBadge />}
           </h2>
-          <p className="text-[11px] text-plum">
+          <p className="text-[13px] text-plum">
             Area tujuan &amp; ongkir:{" "}
             <Link to="/dashboard/pengaturan" className="font-bold text-deep-ube hover:text-ube-pop">
               {deliveryAreas.length > 0
@@ -192,21 +192,21 @@ function BatchProductsComponent() {
                 className="flex items-center justify-between gap-3 rounded-lg bg-vanilla px-3 py-[11px]"
               >
                 <div className="flex flex-col gap-[3px]">
-                  <span className="text-[11px] font-bold text-ink">
+                  <span className="text-[13px] font-bold text-ink">
                     {formatWeekday(zone.windowStartsAt)},{" "}
                     {formatWindow(zone.windowStartsAt, zone.windowEndsAt)}
                   </span>
-                  <span className="text-[10px] text-plum">
+                  <span className="text-xs text-plum">
                     {zone.areas.length > 0 ? zone.areas.join(", ") : "Semua area"}
                   </span>
                 </div>
                 {!zone.active && (
-                  <span className="shrink-0 text-[10px] font-bold text-deep-ube">nonaktif</span>
+                  <span className="shrink-0 text-xs font-bold text-deep-ube">nonaktif</span>
                 )}
               </li>
             ))}
             {zones.length === 0 && (
-              <li className="text-[11px] text-plum">Belum ada jadwal delivery.</li>
+              <li className="text-[13px] text-plum">Belum ada jadwal delivery.</li>
             )}
           </ul>
           <button type="button" onClick={() => setDialog("zones")} className={textActionClassName}>
@@ -215,7 +215,7 @@ function BatchProductsComponent() {
         </section>
       </div>
 
-      <p className="max-w-[930px] border-t border-ube-line pt-[13px] text-[11px] text-plum">
+      <p className="max-w-[930px] border-t border-ube-line pt-[13px] text-[13px] text-plum">
         Perubahan harga berlaku untuk invoice baru saja. Tutup batch menghentikan pesanan baru,
         tetapi invoice lama tetap dapat dibayar hingga tenggatnya.
       </p>
@@ -247,7 +247,7 @@ function BatchProductsComponent() {
 
 function MethodOffBadge() {
   return (
-    <span className="ml-2 rounded-full bg-vanilla px-2 py-0.5 align-middle text-[10px] font-bold text-plum">
+    <span className="ml-2 rounded-full bg-vanilla px-2 py-0.5 align-middle text-xs font-bold text-plum">
       Nonaktif · atur di pengaturan batch
     </span>
   );
@@ -285,12 +285,12 @@ function BatchBanner({
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] bg-vanilla px-5 py-4">
       <div className="flex flex-col gap-[5px]">
         <h2 className="text-[17px]/[1.25] font-extrabold text-ink">{title}</h2>
-        <p className="text-[11px] text-plum">{schedule}</p>
+        <p className="text-[13px] text-plum">{schedule}</p>
       </div>
       <button
         type="button"
         onClick={onAction}
-        className="rounded-full bg-deep-ube px-4 py-[11px] text-[11px]/[14px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
+        className="rounded-full bg-deep-ube px-4 py-[11px] text-[13px]/[14px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
       >
         {action}
       </button>
@@ -305,7 +305,7 @@ function ProductCatalog({ products, action }: { products: CatalogProduct[]; acti
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-[5px]">
           <h2 className="text-[19px]/[1.25] font-extrabold text-ink">Produk di storefront</h2>
-          <p className="text-[11px] text-plum">
+          <p className="text-[13px] text-plum">
             Urutan di sini sama dengan urutan di landing page dan menu. Produk draf tidak tampil.
           </p>
         </div>
@@ -321,7 +321,7 @@ function ProductCatalog({ products, action }: { products: CatalogProduct[]; acti
             last={index === products.length - 1}
           />
         ))}
-        {products.length === 0 && <p className="text-[11px] text-plum">Belum ada produk.</p>}
+        {products.length === 0 && <p className="text-[13px] text-plum">Belum ada produk.</p>}
       </div>
     </section>
   );
@@ -378,15 +378,15 @@ function ProductAdminCard({
       <div className="flex min-w-0 flex-1 flex-col gap-[9px] px-[19px] py-[17px]">
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-[17px]/[1.25] font-extrabold text-ink">{name}</h3>
-          <span className="shrink-0 text-[9px]/[1.25] font-extrabold text-deep-ube">
+          <span className="shrink-0 text-[11px]/[1.25] font-extrabold text-deep-ube">
             {productStatus(product)}
           </span>
         </div>
-        <p className="text-[11px] text-plum">{summary}</p>
+        <p className="text-[13px] text-plum">{summary}</p>
         <p className="text-base font-extrabold text-deep-ube">
           {formatRupiah(price)} / {unit}
         </p>
-        <p className="text-[10px] text-plum">{productStock(product)}</p>
+        <p className="text-xs text-plum">{productStock(product)}</p>
         <div className="mt-auto flex items-center justify-between gap-3">
           <Link
             to="/dashboard/batch-produk/$slug"

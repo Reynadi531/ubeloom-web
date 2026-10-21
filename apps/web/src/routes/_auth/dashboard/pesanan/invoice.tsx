@@ -43,8 +43,8 @@ function formatDate(value: string) {
 }
 
 const fieldClassName =
-  "h-10 w-full rounded-[7px] border border-ube-line bg-surface px-3 text-[11px] font-semibold text-ink outline-none focus:border-ube-pop";
-const fieldErrorClassName = "text-[10px] font-semibold text-[#b42318]";
+  "h-10 w-full rounded-[7px] border border-ube-line bg-surface px-3 text-[13px] font-semibold text-ink outline-none focus:border-ube-pop";
+const fieldErrorClassName = "text-xs font-semibold text-[#b42318]";
 
 function InvoiceRoute() {
   const form = Route.useLoaderData();
@@ -126,11 +126,11 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
     <AdminPage className="bg-surface font-wordmark print:p-0">
       <div className="flex flex-col gap-[18px]">
         <div className="flex flex-col gap-[5px] print:hidden">
-          <p className="text-[10px] font-bold tracking-[1.5px] whitespace-pre text-plum">
+          <p className="text-xs font-bold tracking-[1.5px] whitespace-pre text-plum">
             {"KEUANGAN  /  DOKUMEN"}
           </p>
           <h1 className="text-[28px]/[1.35] font-extrabold text-ink">Buat invoice</h1>
-          <p className="text-xs text-plum">
+          <p className="text-sm text-plum">
             Susun detail tagihan, tinjau sebelum diterbitkan, lalu unduh PDF untuk pelanggan.
           </p>
         </div>
@@ -148,7 +148,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
             <h2 id="invoice-form-title" className="text-[17px] font-extrabold text-ink">
               Detail invoice
             </h2>
-            <p className="text-[11px] text-plum">
+            <p className="text-[13px] text-plum">
               Informasi ini akan tampil pada dokumen pelanggan.
             </p>
             <Field
@@ -223,7 +223,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
                   id={id}
                   value={invoice.memo}
                   onChange={(event) => update("memo")(event.target.value)}
-                  className="h-[58px] w-full resize-none rounded-[7px] border border-ube-line bg-surface p-3 text-[11px] text-plum outline-none focus:border-ube-pop"
+                  className="h-[58px] w-full resize-none rounded-[7px] border border-ube-line bg-surface p-3 text-[13px] text-plum outline-none focus:border-ube-pop"
                 />
               )}
             </Field>
@@ -236,11 +236,11 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
             <div className="flex items-center justify-between gap-3 print:hidden">
               <h2
                 id="invoice-preview-title"
-                className="text-[10px] font-extrabold tracking-[1px] text-plum"
+                className="text-xs font-extrabold tracking-[1px] text-plum"
               >
                 PRATINJAU DOKUMEN
               </h2>
-              <p className="text-[10px] text-plum">Ukuran A4</p>
+              <p className="text-xs text-plum">Ukuran A4</p>
             </div>
 
             <InvoicePaper
@@ -256,7 +256,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
                 type="button"
                 disabled={submitting || !order}
                 onClick={() => void publish()}
-                className="flex items-center gap-2 rounded-lg bg-deep-ube px-[17px] py-[13px] text-[11px] font-extrabold text-vanilla transition-colors hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-deep-ube px-[17px] py-[13px] text-[13px] font-extrabold text-vanilla transition-colors hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileCheck2 aria-hidden className="size-[15px]" />
                 {submitting
@@ -268,7 +268,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex items-center gap-[7px] rounded-lg border border-ube-line bg-white px-[15px] py-[13px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
+                className="flex items-center gap-[7px] rounded-lg border border-ube-line bg-white px-[15px] py-[13px] text-[13px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
               >
                 <Download aria-hidden className="size-3.5" />
                 Unduh draf
@@ -279,7 +279,7 @@ function InvoiceComponent({ form }: { form: InvoiceForm }) {
                 {errors.form}
               </p>
             )}
-            <p className="text-[10px] text-plum print:hidden">
+            <p className="text-xs text-plum print:hidden">
               Simpan sebagai PDF lewat dialog cetak. Penerbitan tercatat di riwayat pesanan.
             </p>
           </section>
@@ -304,18 +304,18 @@ function InvoicePaper({
     <article className="flex min-h-[500px] flex-col gap-[15px] rounded-[5px] bg-white p-[26px] text-ink shadow-[0_4px_16px_#321d2d18] print:shadow-none">
       <p className="font-display text-[19px] font-bold text-deep-ube">{brandName.toUpperCase()}</p>
       <p className="text-2xl font-extrabold">INVOICE</p>
-      <p className="text-[10px] font-bold break-all whitespace-pre-wrap text-plum">
+      <p className="text-xs font-bold break-all whitespace-pre-wrap text-plum">
         {`${number}     ·     ${formatDate(invoice.issuedOn).toUpperCase()}`}
       </p>
       <hr className="border-ube-line" />
-      <p className="text-[11px]/[1.6] break-all whitespace-pre-line">
+      <p className="text-[13px]/[1.6] break-all whitespace-pre-line">
         {`DITAGIHKAN KEPADA\n${invoice.customerName || "—"}\n${invoice.customerEmail || "—"}`}
       </p>
-      <p className="text-[11px]/[1.6] whitespace-pre-wrap">
+      <p className="text-[13px]/[1.6] whitespace-pre-wrap">
         {`PESANAN  ${order?.invoiceNumber ?? "—"}`}
       </p>
       {order && (
-        <ul className="flex flex-col gap-1 text-[11px]/[1.6]">
+        <ul className="flex flex-col gap-1 text-[13px]/[1.6]">
           {order.items.map(({ productName, quantity, lineTotal }) => (
             <li key={productName} className="flex justify-between gap-3">
               <span>
@@ -340,11 +340,11 @@ function InvoicePaper({
       )}
       <hr className="border-ube-line" />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[11px] font-extrabold">TOTAL TAGIHAN</p>
+        <p className="text-[13px] font-extrabold">TOTAL TAGIHAN</p>
         <p className="text-xl font-extrabold text-deep-ube">{formatRupiah(order?.total ?? 0)}</p>
       </div>
-      <p className="text-[10px] text-plum">Jatuh tempo: {formatDate(invoice.dueOn)}</p>
-      {invoice.memo && <p className="text-[10px] whitespace-pre-line text-plum">{invoice.memo}</p>}
+      <p className="text-xs text-plum">Jatuh tempo: {formatDate(invoice.dueOn)}</p>
+      {invoice.memo && <p className="text-xs whitespace-pre-line text-plum">{invoice.memo}</p>}
     </article>
   );
 }
@@ -364,11 +364,11 @@ function Field({
 
   return (
     <div className="flex flex-col gap-[7px]">
-      <label htmlFor={id} className="text-[11px] font-bold text-ink">
+      <label htmlFor={id} className="text-[13px] font-bold text-ink">
         {label}
       </label>
       {children(id)}
-      {hint && <p className="text-[10px] text-plum">{hint}</p>}
+      {hint && <p className="text-xs text-plum">{hint}</p>}
       {error && <p className={fieldErrorClassName}>{error}</p>}
     </div>
   );

@@ -140,7 +140,7 @@ const rules: { title: string; detail: string }[] = [
 ];
 
 const cardClassName = "rounded-xl border border-ube-line";
-const columnHeadingClassName = "text-left text-[9px] font-extrabold text-plum";
+const columnHeadingClassName = "text-left text-[11px] font-extrabold text-plum";
 const filterSelectClassName = "h-[38px]! w-full px-[11px]! sm:w-auto";
 const inputClassName =
   "flex h-9 items-center rounded-[7px] border border-ube-line bg-white px-2.5 transition-colors focus-within:border-ube-pop";
@@ -267,7 +267,7 @@ function FulfillmentComponent() {
     return (
       <AdminPage className="gap-[19px]!">
         <h1 className="text-[30px]/[1.25] font-extrabold text-ink">Pickup &amp; pengantaran</h1>
-        <p className="text-xs font-medium text-plum">
+        <p className="text-sm font-medium text-plum">
           Belum ada batch. Buat batch terlebih dahulu untuk mengelola pemenuhan pesanan.
         </p>
       </AdminPage>
@@ -326,11 +326,11 @@ function FulfillmentComponent() {
     <AdminPage className="gap-[19px]!">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex max-w-[660px] flex-col gap-[5px]">
-          <p className="text-[10px] font-extrabold tracking-[1.5px] whitespace-pre text-deep-ube">
+          <p className="text-xs font-extrabold tracking-[1.5px] whitespace-pre text-deep-ube">
             {heading.eyebrow} / OPERASI
           </p>
           <h1 className="text-[30px]/[1.25] font-extrabold text-ink">Pickup &amp; pengantaran</h1>
-          <p className="text-xs font-medium text-plum">
+          <p className="text-sm font-medium text-plum">
             Kelola pesanan lunas untuk diambil atau dikirim.{" "}
             {batch.status === "open"
               ? `Batch ${batch.name} masih menerima preorder hingga ${formatDayMonth(batch.closesAt)}, ${formatTime(batch.closesAt)} WIB.`
@@ -358,7 +358,7 @@ function FulfillmentComponent() {
       <div className="flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <h2 className="text-[19px]/[1.25] font-extrabold text-ink">Antrean pemenuhan</h2>
-          <p className="text-[11px] font-medium text-plum">
+          <p className="text-[13px] font-medium text-plum">
             Batch {heading.word} · {metrics.paid} lunas · {metrics.awaitingPayment} menunggu bayar
           </p>
         </div>
@@ -371,7 +371,7 @@ function FulfillmentComponent() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Cari invoice / WhatsApp"
-              className="min-w-0 flex-1 bg-transparent text-[11px] font-medium text-ink outline-none placeholder:text-plum"
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink outline-none placeholder:text-plum"
             />
           </label>
           <FilterSelect
@@ -432,7 +432,7 @@ function FulfillmentComponent() {
           />
         ) : (
           <section
-            className={`${cardClassName} flex min-h-[200px] min-w-0 items-center justify-center bg-surface p-[17px] text-[11px] font-medium text-plum`}
+            className={`${cardClassName} flex min-h-[200px] min-w-0 items-center justify-center bg-surface p-[17px] text-[13px] font-medium text-plum`}
           >
             Belum ada pesanan untuk ditampilkan.
           </section>
@@ -448,14 +448,14 @@ function FulfillmentComponent() {
           </div>
           {rules.map(({ title, detail }) => (
             <div key={title} className="flex flex-col gap-[3px]">
-              <h3 className="text-[11px] font-extrabold text-deep-ube">{title}</h3>
-              <p className="text-[10px]/[1.35] font-medium text-plum">{detail}</p>
+              <h3 className="text-[13px] font-extrabold text-deep-ube">{title}</h3>
+              <p className="text-xs/[1.35] font-medium text-plum">{detail}</p>
             </div>
           ))}
         </section>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-medium text-plum">
+      <footer className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-plum">
         <span>Akses administrator saja · waktu ditampilkan dalam WIB</span>
         <span>Bukti bayar privat • ekspor data hanya untuk admin</span>
       </footer>
@@ -521,14 +521,14 @@ function OrdersQueue({
                   className={`h-[81px] cursor-pointer border-b border-ube-line transition-colors outline-none focus-visible:bg-vanilla ${selected ? "bg-[#fbf1f8]" : "hover:bg-surface"}`}
                 >
                   <td className="py-3 pr-2.5 pl-4">
-                    <p className="font-data text-[11px] font-extrabold text-deep-ube">
+                    <p className="font-data text-[13px] font-extrabold text-deep-ube">
                       {order.invoiceNumber}
                     </p>
-                    <p className="mt-1.5 text-[10px] font-medium text-plum">
+                    <p className="mt-1.5 text-xs font-medium text-plum">
                       {order.customerName} · {maskPhone(order.customerPhone)}
                     </p>
                   </td>
-                  <td className="pr-2.5 text-[11px] font-bold text-ink">
+                  <td className="pr-2.5 text-[13px] font-bold text-ink">
                     {methodLabels[order.method]}
                   </td>
                   <td className="pr-2.5">
@@ -536,15 +536,13 @@ function OrdersQueue({
                       {boardStatusLabels[order.boardStatus]}
                     </StatusBadge>
                   </td>
-                  <td className="pr-4 text-[10px] font-semibold text-plum">
-                    {scheduleLabel(order)}
-                  </td>
+                  <td className="pr-4 text-xs font-semibold text-plum">{scheduleLabel(order)}</td>
                 </tr>
               );
             })}
             {orders.length === 0 && (
               <tr className="h-[81px] border-b border-ube-line">
-                <td colSpan={4} className="px-4 text-[11px] font-medium text-plum">
+                <td colSpan={4} className="px-4 text-[13px] font-medium text-plum">
                   Tidak ada pesanan yang cocok dengan pencarian atau filter.
                 </td>
               </tr>
@@ -552,7 +550,7 @@ function OrdersQueue({
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-[13px] text-[10px]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-[13px] text-xs">
         <p className="font-medium text-plum">
           Menampilkan {pageOrders.length} dari {orders.length} pesanan
         </p>
@@ -682,11 +680,11 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
         <h2 id="delivery-detail-title" className="text-[17px]/[1.25] font-extrabold text-ink">
           {isPickup ? "Detail pengambilan" : "Detail pengantaran"}
         </h2>
-        <p className="text-[9px] font-extrabold tracking-[0.5px] text-deep-ube">{summary}</p>
+        <p className="text-[11px] font-extrabold tracking-[0.5px] text-deep-ube">{summary}</p>
       </div>
-      <p className="font-data text-[11px] font-bold text-deep-ube">{order.invoiceNumber}</p>
+      <p className="font-data text-[13px] font-bold text-deep-ube">{order.invoiceNumber}</p>
       <hr className="border-ube-line" />
-      <dl className="flex flex-col gap-[11px] text-[10px]">
+      <dl className="flex flex-col gap-[11px] text-xs">
         {details.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-4">
             <dt className="shrink-0 font-medium text-plum">{label}</dt>
@@ -698,14 +696,14 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
-        className="flex h-[39px] items-center gap-[9px] rounded-[7px] border border-ube-line bg-white px-2.5 text-left text-[10px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
+        className="flex h-[39px] items-center gap-[9px] rounded-[7px] border border-ube-line bg-white px-2.5 text-left text-xs font-bold text-deep-ube transition-colors hover:bg-vanilla"
       >
         <MapPin aria-hidden className="size-[15px] shrink-0" />
         {isPickup ? "Lihat detail pesanan & catatan" : "Lihat detail alamat & instruksi kurir"}{" "}
         {expanded ? "↑" : "↗"}
       </button>
       {expanded && (
-        <dl className="flex flex-col gap-2 rounded-[7px] border border-ube-line bg-white p-2.5 text-[10px]">
+        <dl className="flex flex-col gap-2 rounded-[7px] border border-ube-line bg-white p-2.5 text-xs">
           <ExpandedRow label="WhatsApp" value={order.customerPhone} />
           {!isPickup && (
             <>
@@ -725,7 +723,7 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
           )}
         </dl>
       )}
-      <p className="text-[10px]/[1.35] font-medium text-plum">
+      <p className="text-xs/[1.35] font-medium text-plum">
         {isPickup
           ? "Hanya pesanan lunas dapat diambil. Cocokkan invoice dan nama pengambil, lalu catat serah-terima."
           : "Hanya pesanan lunas dapat dikirim. Konfirmasi alamat dan wilayah, lalu catat petugas, waktu serah-terima serta bukti pengantaran."}
@@ -741,7 +739,7 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
                 value={handoverTo}
                 onChange={(event) => setHandoverTo(event.target.value)}
                 placeholder={`${handoverLabel} (${isCourierHandover ? "wajib" : "opsional"})`}
-                className="min-w-0 flex-1 bg-transparent text-[10px] font-medium text-ink outline-none placeholder:text-plum"
+                className="min-w-0 flex-1 bg-transparent text-xs font-medium text-ink outline-none placeholder:text-plum"
               />
             </label>
           )}
@@ -760,7 +758,7 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
                   ? "Catatan serah-terima (opsional)"
                   : "Catatan kurir / nomor resi internal (opsional)"
               }
-              className="min-w-0 flex-1 bg-transparent text-[10px] font-medium text-ink outline-none placeholder:text-plum"
+              className="min-w-0 flex-1 bg-transparent text-xs font-medium text-ink outline-none placeholder:text-plum"
             />
           </label>
           <div className="flex flex-wrap justify-end gap-2">
@@ -777,7 +775,7 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
                   !paid ? "Pesanan belum lunas" : needsName ? "Isi nama kurir dahulu" : undefined
                 }
                 onClick={() => move(next)}
-                className="rounded-full bg-deep-ube px-[22px] py-[13px] text-xs/[15px] font-bold text-vanilla transition-colors hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-deep-ube"
+                className="rounded-full bg-deep-ube px-[22px] py-[13px] text-sm/[15px] font-bold text-vanilla transition-colors hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-deep-ube"
               >
                 {actionLabels[next]}
               </button>
@@ -785,7 +783,7 @@ function DeliveryDetail({ order, pickupLocation }: { order: Order; pickupLocatio
           </div>
         </>
       ) : (
-        <p className="rounded-[7px] bg-vanilla px-2.5 py-2 text-[10px] font-bold text-deep-ube">
+        <p className="rounded-[7px] bg-vanilla px-2.5 py-2 text-xs font-bold text-deep-ube">
           {order.fulfillmentStatus === "cancelled"
             ? "Pesanan dibatalkan."
             : "Pesanan sudah selesai."}
@@ -818,7 +816,7 @@ function ProductionTable({ production }: { production: ProductionRow[] }) {
           <h2 id="production-title" className="text-base/[1.25] font-extrabold text-ink">
             Produksi &amp; distribusi
           </h2>
-          <p className="text-[10px] font-medium text-plum">
+          <p className="text-xs font-medium text-plum">
             Kuantitas lunas menurut varian dan metode pemenuhan
           </p>
         </div>
@@ -827,7 +825,7 @@ function ProductionTable({ production }: { production: ProductionRow[] }) {
             type="button"
             aria-expanded={showAll}
             onClick={() => setShowAll((value) => !value)}
-            className="shrink-0 text-[10px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop"
+            className="shrink-0 text-xs font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop"
           >
             {showAll ? "Ringkas ↑" : "Lihat semua jadwal ↗"}
           </button>
@@ -856,11 +854,11 @@ function ProductionTable({ production }: { production: ProductionRow[] }) {
                   key={`${row.productName}-${schedule}`}
                   className="h-[50px] border-b border-ube-line"
                 >
-                  <th scope="row" className="pl-4 text-left text-[11px] font-bold text-ink">
+                  <th scope="row" className="pl-4 text-left text-[13px] font-bold text-ink">
                     {row.productName}
                   </th>
-                  <td className="text-[10px] font-medium text-plum">{schedule}</td>
-                  <td className="pr-4 text-[11px] font-extrabold text-deep-ube">
+                  <td className="text-xs font-medium text-plum">{schedule}</td>
+                  <td className="pr-4 text-[13px] font-extrabold text-deep-ube">
                     {row.quantity} item
                   </td>
                 </tr>
@@ -868,7 +866,7 @@ function ProductionTable({ production }: { production: ProductionRow[] }) {
             })}
             {production.length === 0 && (
               <tr className="h-[50px] border-b border-ube-line">
-                <td colSpan={3} className="px-4 text-[11px] font-medium text-plum">
+                <td colSpan={3} className="px-4 text-[13px] font-medium text-plum">
                   Belum ada pesanan lunas di batch ini.
                 </td>
               </tr>
@@ -895,7 +893,7 @@ function OutlineButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="rounded-full border-[1.5px] border-deep-ube bg-surface px-[20.5px] py-[11.5px] text-xs/[15px] font-bold whitespace-nowrap text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
+      className="rounded-full border-[1.5px] border-deep-ube bg-surface px-[20.5px] py-[11.5px] text-sm/[15px] font-bold whitespace-nowrap text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>

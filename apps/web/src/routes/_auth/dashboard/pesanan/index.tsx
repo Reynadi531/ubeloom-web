@@ -49,7 +49,7 @@ const paymentOptions = [ALL, ...paymentEntries.map(([, label]) => label)];
 const methodOptions = [ALL, ...methodEntries.map(([, label]) => label)];
 
 const exportButtonClassName =
-  "rounded-full border border-deep-ube px-3.5 py-2.5 text-[11px]/none font-bold whitespace-pre text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-wait disabled:opacity-60";
+  "rounded-full border border-deep-ube px-3.5 py-2.5 text-[13px]/none font-bold whitespace-pre text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-wait disabled:opacity-60";
 
 /** Page numbers around the current page, at most five. */
 function pageWindow(page: number, pageCount: number) {
@@ -132,7 +132,7 @@ function OrdersComponent() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Cari invoice, nama atau WhatsApp"
-            className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-plum"
+            className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-plum"
           />
         </label>
         <div className="flex flex-wrap gap-[9px]">
@@ -154,7 +154,7 @@ function OrdersComponent() {
           </button>
           <Link
             to="/dashboard/pesanan/baru"
-            className="flex items-center gap-[7px] rounded-full bg-deep-ube px-3.5 py-2.5 text-[11px]/none font-bold text-vanilla transition-colors hover:bg-ube-pop"
+            className="flex items-center gap-[7px] rounded-full bg-deep-ube px-3.5 py-2.5 text-[13px]/none font-bold text-vanilla transition-colors hover:bg-ube-pop"
           >
             Buat invoice manual
             <ArrowUpRight aria-hidden className="size-3.5" />
@@ -221,7 +221,7 @@ function OrdersComponent() {
         >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[630px] table-fixed border-collapse text-left">
-              <thead className="bg-vanilla text-[9px] font-extrabold text-plum">
+              <thead className="bg-vanilla text-[11px] font-extrabold text-plum">
                 <tr className="h-[43px]">
                   <th scope="col" className="w-[219px] pl-3.5 font-extrabold">
                     INVOICE / NAMA
@@ -255,24 +255,24 @@ function OrdersComponent() {
                           aria-pressed={selected}
                           className="flex flex-col gap-[5px] text-left outline-none focus-visible:underline"
                         >
-                          <span className="font-data text-[10px] font-bold text-deep-ube">
+                          <span className="font-data text-xs font-bold text-deep-ube">
                             {order.invoiceNumber}
                           </span>
-                          <span className="text-[10px] text-plum">{order.customerName}</span>
+                          <span className="text-xs text-plum">{order.customerName}</span>
                         </button>
                       </td>
-                      <td className="text-[11px] font-bold text-ink">
+                      <td className="text-[13px] font-bold text-ink">
                         {methodLabels[order.method]}
                       </td>
                       <td
-                        className={`text-[10px] font-bold ${order.paymentStatus === "paid" ? "text-deep-ube" : "text-plum"}`}
+                        className={`text-xs font-bold ${order.paymentStatus === "paid" ? "text-deep-ube" : "text-plum"}`}
                       >
                         {paymentStatusLabels[order.paymentStatus]}
                       </td>
-                      <td className="text-[10px] font-semibold text-ink">
+                      <td className="text-xs font-semibold text-ink">
                         {fulfillmentStatusLabels[order.fulfillmentStatus]}
                       </td>
-                      <td className="pr-3.5 text-[10px] font-bold text-ink">
+                      <td className="pr-3.5 text-xs font-bold text-ink">
                         {formatRupiah(order.total)}
                       </td>
                     </tr>
@@ -280,7 +280,7 @@ function OrdersComponent() {
                 })}
                 {data.orders.length === 0 && (
                   <tr className="h-[75px] border-b border-ube-line">
-                    <td colSpan={5} className="px-3.5 text-center text-[11px] text-plum">
+                    <td colSpan={5} className="px-3.5 text-center text-[13px] text-plum">
                       {data.batch
                         ? "Tidak ada pesanan yang cocok dengan filter."
                         : "Belum ada batch. Buat batch terlebih dahulu."}
@@ -290,7 +290,7 @@ function OrdersComponent() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between gap-4 px-3.5 py-[15px] text-[10px]">
+          <div className="flex items-center justify-between gap-4 px-3.5 py-[15px] text-xs">
             <p className="text-plum">
               {data.orders.length} dari {data.filteredTotal} pesanan
             </p>
@@ -333,7 +333,7 @@ function OrdersComponent() {
         {selectedOrder && <SelectedOrder order={selectedOrder} />}
       </div>
 
-      <p className="border-t border-ube-line pt-[15px] text-[11px] text-plum">
+      <p className="border-t border-ube-line pt-[15px] text-[13px] text-plum">
         Data kontak dan alamat hanya untuk pemenuhan pesanan. Ekspor bersifat admin-only dan
         tercatat di log server.
       </p>
@@ -376,7 +376,7 @@ function SelectedOrder({ order }: { order: OrderListRow }) {
       aria-labelledby="selected-order-invoice"
       className="flex flex-col gap-3.5 rounded-xl bg-vanilla p-5"
     >
-      <p className="font-data text-[10px] font-extrabold whitespace-pre text-deep-ube">
+      <p className="font-data text-xs font-extrabold whitespace-pre text-deep-ube">
         {`PESANAN TERPILIH  /  ${methodLabels[order.method].toUpperCase()}`}
       </p>
       <h2 id="selected-order-invoice" className="font-data text-sm font-bold break-all text-ink">
@@ -389,8 +389,8 @@ function SelectedOrder({ order }: { order: OrderListRow }) {
       <dl className="flex flex-col gap-3.5">
         {details.map(({ label, value }) => (
           <div key={label} className="flex flex-col gap-1">
-            <dt className="text-[10px] font-semibold text-plum">{label}</dt>
-            <dd className="text-xs font-bold text-ink">{value}</dd>
+            <dt className="text-xs font-semibold text-plum">{label}</dt>
+            <dd className="text-sm font-bold text-ink">{value}</dd>
           </div>
         ))}
       </dl>
@@ -398,14 +398,14 @@ function SelectedOrder({ order }: { order: OrderListRow }) {
         {/* Payment review and fulfillment status each live on their own admin page. */}
         <Link
           to={paid ? "/dashboard/produksi-kirim" : "/dashboard/verifikasi-bayar"}
-          className="w-fit rounded-full bg-deep-ube px-[17px] py-3 text-xs/none font-bold whitespace-pre text-vanilla transition-colors hover:bg-ube-pop"
+          className="w-fit rounded-full bg-deep-ube px-[17px] py-3 text-sm/none font-bold whitespace-pre text-vanilla transition-colors hover:bg-ube-pop"
         >
           {"Buka detail & status  →"}
         </Link>
         <Link
           to="/dashboard/pesanan/invoice"
           search={{ orderId: order.id }}
-          className="w-fit rounded-full border border-deep-ube px-[15px] py-[11px] text-xs/none font-bold whitespace-pre text-deep-ube transition-colors hover:bg-white"
+          className="w-fit rounded-full border border-deep-ube px-[15px] py-[11px] text-sm/none font-bold whitespace-pre text-deep-ube transition-colors hover:bg-white"
         >
           Buat invoice
         </Link>

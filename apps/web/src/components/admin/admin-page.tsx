@@ -32,11 +32,9 @@ export function PageHeading({
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex max-w-[690px] flex-col gap-1.5">
-        <p className="font-data text-[10px] font-extrabold whitespace-pre text-deep-ube">
-          {eyebrow}
-        </p>
+        <p className="font-data text-xs font-extrabold whitespace-pre text-deep-ube">{eyebrow}</p>
         <h1 className="font-display text-[30px]/[1.2] font-bold text-ink">{title}</h1>
-        <p className="text-xs text-plum">{description}</p>
+        <p className="text-sm text-plum">{description}</p>
       </div>
       {actions}
     </div>
@@ -45,7 +43,7 @@ export function PageHeading({
 
 export function BatchStatusPill({ label }: { label: string }) {
   return (
-    <p className="flex items-center gap-[7px] rounded-full bg-vanilla px-[13px] py-[9px] font-data text-[10px] font-bold text-deep-ube">
+    <p className="flex items-center gap-[7px] rounded-full bg-vanilla px-[13px] py-[9px] font-data text-xs font-bold text-deep-ube">
       <span aria-hidden className="size-[7px] rounded-full bg-ube-pop" />
       {label}
     </p>

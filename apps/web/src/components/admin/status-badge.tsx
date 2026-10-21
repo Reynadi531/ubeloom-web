@@ -22,7 +22,7 @@ export function StatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex w-fit items-center rounded-md px-2 py-1.5 text-[10px]/none font-bold whitespace-nowrap ${toneClassNames[tone]} ${className}`}
+      className={`inline-flex w-fit items-center rounded-md px-2 py-1.5 text-xs/none font-bold whitespace-nowrap ${toneClassNames[tone]} ${className}`}
     >
       {children}
     </span>

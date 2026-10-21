@@ -17,11 +17,11 @@ export function MetricCard({
   return (
     <div className={`${cardClassName} min-h-[105px] gap-1.5 px-[15px] py-[13px]`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[9px] font-extrabold tracking-[1px] text-plum">{label}</p>
+        <p className="text-[11px] font-extrabold tracking-[1px] text-plum">{label}</p>
         <Icon className="size-[15px] shrink-0 text-deep-ube" />
       </div>
       <p className="text-[22px]/[1.25] font-extrabold text-deep-ube">{value}</p>
-      <p className="text-[10px] font-medium text-plum">{context}</p>
+      <p className="text-xs font-medium text-plum">{context}</p>
     </div>
   );
 }
@@ -41,9 +41,9 @@ export function CompactMetric({
 }) {
   return (
     <div className={`${cardClassName} gap-[7px] px-[18px] py-[15px]`}>
-      <p className="text-[9px] font-extrabold text-plum">{label}</p>
+      <p className="text-[11px] font-extrabold text-plum">{label}</p>
       <p className={`${valueClassName} font-extrabold text-deep-ube`}>{value}</p>
-      <p className="text-[10px] text-plum">{detail}</p>
+      <p className="text-xs text-plum">{detail}</p>
     </div>
   );
 }

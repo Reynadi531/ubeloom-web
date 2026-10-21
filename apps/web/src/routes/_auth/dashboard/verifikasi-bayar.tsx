@@ -61,7 +61,7 @@ const detailBadges: Record<PaymentReviewAttempt["status"], { tone: StatusTone; l
 
 const cardClassName = "rounded-[14px] border border-ube-line bg-surface";
 const inputClassName =
-  "h-10 w-full rounded-lg border border-ube-line px-3 text-[11px] text-ink outline-none placeholder:text-plum focus:border-ube-pop";
+  "h-10 w-full rounded-lg border border-ube-line px-3 text-[13px] text-ink outline-none placeholder:text-plum focus:border-ube-pop";
 
 /** "Rani A." — first name plus last initial for list views. */
 function shortName(name: string) {
@@ -169,7 +169,7 @@ function PaymentReviewComponent() {
         ))}
       </section>
 
-      <p className="flex items-center gap-2.5 rounded-[10px] bg-vanilla px-[17px] py-[13px] text-[11px] font-semibold text-deep-ube">
+      <p className="flex items-center gap-2.5 rounded-[10px] bg-vanilla px-[17px] py-[13px] text-[13px] font-semibold text-deep-ube">
         <ShieldCheck aria-hidden className="size-[18px] shrink-0" />
         Unggah bukti ≠ pembayaran lunas. Setujui hanya setelah nominal, waktu, merchant dan
         referensi transaksi cocok.
@@ -179,7 +179,7 @@ function PaymentReviewComponent() {
         <section className="flex flex-col gap-[11px] xl:w-[350px] xl:shrink-0">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-lg font-extrabold text-ink">Antrean bukti bayar</h2>
-            <p className="text-[10px] font-bold text-deep-ube">
+            <p className="text-xs font-bold text-deep-ube">
               {pendingCount} menunggu
               {metrics.resubmitted > 0 && ` · ${metrics.resubmitted} kirim ulang`}
             </p>
@@ -208,7 +208,7 @@ function PaymentReviewComponent() {
             />
           ))}
           {visibleAttempts.length === 0 && (
-            <p className="py-4 text-center text-[11px] text-plum">
+            <p className="py-4 text-center text-[13px] text-plum">
               {attempts.length === 0
                 ? "Belum ada bukti bayar yang menunggu review."
                 : "Tidak ada bukti bayar yang cocok."}
@@ -221,14 +221,14 @@ function PaymentReviewComponent() {
           <PaymentDetail key={selected.id} attempt={selected} merchantName={merchantName} />
         ) : (
           <section
-            className={`${cardClassName} flex min-h-[200px] min-w-0 flex-1 items-center justify-center p-5 text-[11px] text-plum`}
+            className={`${cardClassName} flex min-h-[200px] min-w-0 flex-1 items-center justify-center p-5 text-[13px] text-plum`}
           >
             Pilih bukti bayar dari antrean untuk ditinjau.
           </section>
         )}
       </div>
 
-      <footer className="border-t border-ube-line pt-[13px] text-[11px] text-plum">
+      <footer className="border-t border-ube-line pt-[13px] text-[13px] text-plum">
         <p className="max-w-[950px]">
           Peninjau, waktu, referensi merchant dan alasan penolakan disimpan. Transfer yang sama
           tidak dapat melunasi dua invoice.
@@ -325,7 +325,7 @@ function PaymentDetail({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-[10px] font-extrabold whitespace-pre text-plum">
+          <p className="text-xs font-extrabold whitespace-pre text-plum">
             {`PERCOBAAN #${attempt.attempt}  /  INVOICE`}
           </p>
           <h2 id="payment-detail-title" className="text-base font-bold break-all text-ink">
@@ -348,8 +348,8 @@ function PaymentDetail({
             {new URL(attempt.proofUrl).pathname.endsWith(".pdf") ? (
               <span className="flex size-full flex-col items-center justify-center gap-[9px]">
                 <FileText aria-hidden className="size-[26px] text-deep-ube" />
-                <span className="text-xs font-bold text-ink">Bukti PDF</span>
-                <span className="text-[10px] text-plum">Buka di tab baru</span>
+                <span className="text-sm font-bold text-ink">Bukti PDF</span>
+                <span className="text-xs text-plum">Buka di tab baru</span>
               </span>
             ) : (
               <img
@@ -362,11 +362,11 @@ function PaymentDetail({
         ) : (
           <div className="flex h-[200px] flex-col items-center justify-center gap-[9px] rounded-[9px] bg-vanilla sm:w-[215px] sm:shrink-0">
             <Image aria-hidden className="size-[26px] text-deep-ube" />
-            <p className="text-xs font-bold text-ink">Bukti bayar privat</p>
-            <p className="text-[10px] text-plum">Belum ada gambar terlampir</p>
+            <p className="text-sm font-bold text-ink">Bukti bayar privat</p>
+            <p className="text-xs text-plum">Belum ada gambar terlampir</p>
           </div>
         )}
-        <dl className="flex min-w-0 flex-1 flex-col gap-2.5 text-[10px]">
+        <dl className="flex min-w-0 flex-1 flex-col gap-2.5 text-xs">
           {comparison.map(([label, value]) => (
             <div key={label} className="flex justify-between gap-3">
               <dt className="shrink-0 text-plum">{label}</dt>
@@ -383,14 +383,14 @@ function PaymentDetail({
       </div>
 
       {pending && cancelled && (
-        <p className="flex items-center gap-2 rounded-[9px] bg-[#fff1d3] px-3.5 py-2.5 text-[10px] font-semibold text-[#855814]">
+        <p className="flex items-center gap-2 rounded-[9px] bg-[#fff1d3] px-3.5 py-2.5 text-xs font-semibold text-[#855814]">
           <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
           Pesanan ini sudah dibatalkan. Tolak bukti dan proses pengembalian dana bila perlu.
         </p>
       )}
 
       {pending && !amountMatches && (
-        <p className="flex items-center gap-2 rounded-[9px] bg-[#fff1d3] px-3.5 py-2.5 text-[10px] font-semibold text-[#855814]">
+        <p className="flex items-center gap-2 rounded-[9px] bg-[#fff1d3] px-3.5 py-2.5 text-xs font-semibold text-[#855814]">
           <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
           Nominal diklaim berbeda {formatRupiah(Math.abs(order.total - attempt.claimedAmount))} dari
           total invoice. Tolak dan minta bukti ulang.
@@ -398,7 +398,7 @@ function PaymentDetail({
       )}
 
       {!pending && (
-        <p className="rounded-[9px] bg-vanilla px-3.5 py-2.5 text-[10px] text-plum">
+        <p className="rounded-[9px] bg-vanilla px-3.5 py-2.5 text-xs text-plum">
           {attempt.status === "rejected" ? "Ditolak" : "Disetujui"}
           {attempt.reviewedBy ? ` oleh ${attempt.reviewedBy}` : ""}
           {attempt.reviewedAt
@@ -416,13 +416,13 @@ function PaymentDetail({
             aria-labelledby="approval-checklist-title"
             className="flex flex-col gap-[9px] rounded-[9px] bg-vanilla p-3.5"
           >
-            <h3 id="approval-checklist-title" className="text-xs font-extrabold text-ink">
+            <h3 id="approval-checklist-title" className="text-sm font-extrabold text-ink">
               Sebelum menyetujui
             </h3>
             {checklist.map((item, index) => (
               <label
                 key={item}
-                className="flex cursor-pointer items-center gap-2 text-[10px] text-plum"
+                className="flex cursor-pointer items-center gap-2 text-xs text-plum"
               >
                 <span className="relative flex size-3.5 shrink-0">
                   <input
@@ -463,7 +463,7 @@ function PaymentDetail({
               aria-labelledby="reject-title"
               className="flex flex-col gap-2 rounded-[9px] border border-ube-line bg-white p-3.5"
             >
-              <h3 id="reject-title" className="text-xs font-extrabold text-ink">
+              <h3 id="reject-title" className="text-sm font-extrabold text-ink">
                 Alasan penolakan
               </h3>
               <label className="sr-only" htmlFor="reject-reason">
@@ -500,7 +500,7 @@ function PaymentDetail({
                   type="button"
                   disabled={submitting}
                   onClick={() => setRejecting(false)}
-                  className="rounded-full px-4 py-[11px] text-[11px] font-bold text-plum transition-colors hover:text-deep-ube disabled:opacity-50"
+                  className="rounded-full px-4 py-[11px] text-[13px] font-bold text-plum transition-colors hover:text-deep-ube disabled:opacity-50"
                 >
                   Batal
                 </button>
@@ -508,7 +508,7 @@ function PaymentDetail({
                   type="button"
                   disabled={submitting}
                   onClick={reject}
-                  className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[13px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Konfirmasi tolak
                 </button>
@@ -518,7 +518,7 @@ function PaymentDetail({
                 type="button"
                 disabled={submitting}
                 onClick={() => setRejecting(true)}
-                className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full border border-deep-ube bg-surface px-4 py-[11px] text-[13px] font-bold text-deep-ube transition-colors hover:bg-vanilla disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Tolak dengan alasan
               </button>
@@ -527,7 +527,7 @@ function PaymentDetail({
               type="button"
               disabled={!canApprove || submitting || rejecting}
               onClick={approve}
-              className="rounded-full bg-deep-ube px-4 py-[11px] text-[11px] font-bold text-vanilla transition-colors not-disabled:hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full bg-deep-ube px-4 py-[11px] text-[13px] font-bold text-vanilla transition-colors not-disabled:hover:bg-ube-pop disabled:cursor-not-allowed disabled:opacity-50"
             >
               Setujui pembayaran
             </button>

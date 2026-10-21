@@ -30,10 +30,10 @@ const fulfillmentOptions: { value: FulfillmentMethod; label: string }[] = [
 ];
 
 const cardClassName = "flex flex-col rounded-xl border border-ube-line bg-white p-[18px]";
-const fieldLabelClassName = "text-[10px] font-bold text-plum";
-const fieldErrorClassName = "text-[10px] font-semibold text-[#b42318]";
+const fieldLabelClassName = "text-xs font-bold text-plum";
+const fieldErrorClassName = "text-xs font-semibold text-[#b42318]";
 const inputClassName =
-  "h-[42px] w-full rounded-lg border border-ube-line bg-surface px-[11px] text-xs text-ink outline-none transition-colors focus:border-ube-pop";
+  "h-[42px] w-full rounded-lg border border-ube-line bg-surface px-[11px] text-sm text-ink outline-none transition-colors focus:border-ube-pop";
 
 function ManualOrderComponent() {
   const form = Route.useLoaderData();
@@ -177,11 +177,11 @@ function ManualOrderComponent() {
   return (
     <AdminPage className="bg-surface font-wordmark">
       <div className="flex flex-col gap-[5px]">
-        <p className="text-[10px] font-extrabold tracking-[1.4px] text-ube-pop">
+        <p className="text-xs font-extrabold tracking-[1.4px] text-ube-pop">
           PESANAN · INPUT MANUAL
         </p>
         <h1 className="text-[26px]/[1.2] font-extrabold text-ink">Buat pesanan baru</h1>
-        <p className="text-xs text-plum">
+        <p className="text-sm text-plum">
           Catat pesanan di luar checkout dan lampirkan bukti transaksi.
         </p>
       </div>
@@ -189,7 +189,7 @@ function ManualOrderComponent() {
       {!canOrder && (
         <p
           role="status"
-          className="rounded-[10px] bg-[#fff1d3] px-3.5 py-3 text-xs font-bold text-[#855814]"
+          className="rounded-[10px] bg-[#fff1d3] px-3.5 py-3 text-sm font-bold text-[#855814]"
         >
           {form.batch
             ? `Batch ${form.batch.name} sedang tidak dibuka. Buka batch terlebih dahulu untuk mencatat pesanan.`
@@ -241,7 +241,7 @@ function ManualOrderComponent() {
             <div
               role="group"
               aria-labelledby="fulfillment-label"
-              className="flex min-h-10 flex-wrap items-center gap-x-[22px] gap-y-1 rounded-lg border border-ube-gold bg-vanilla px-3 py-2.5 text-xs font-bold text-ink focus-within:border-ube-pop"
+              className="flex min-h-10 flex-wrap items-center gap-x-[22px] gap-y-1 rounded-lg border border-ube-gold bg-vanilla px-3 py-2.5 text-sm font-bold text-ink focus-within:border-ube-pop"
             >
               <OverlaySelect
                 label="Metode pemenuhan"
@@ -267,7 +267,7 @@ function ManualOrderComponent() {
             </div>
             <FieldError message={errors.method ?? errors.scheduleId} />
             {fulfillment === "pickup" && pickupLocation && (
-              <p className="text-[10px] text-plum">Lokasi pickup: {pickupLocation}</p>
+              <p className="text-xs text-plum">Lokasi pickup: {pickupLocation}</p>
             )}
             {fulfillment === "delivery" && (
               <label className="flex flex-col gap-[5px]">
@@ -352,7 +352,7 @@ function ManualOrderComponent() {
                 {lines.map(({ id, name: productName, quantity, total, remaining }) => (
                   <li
                     key={id}
-                    className="flex h-[52px] items-center justify-between gap-3 text-[11px]"
+                    className="flex h-[52px] items-center justify-between gap-3 text-[13px]"
                   >
                     <span className="min-w-0 flex-1 font-bold text-ink">{productName}</span>
                     <span className="flex items-center gap-2 text-plum">
@@ -382,15 +382,15 @@ function ManualOrderComponent() {
             <button
               type="button"
               onClick={() => productSelectRef.current?.focus()}
-              className="w-fit text-[11px] font-bold whitespace-pre text-ube-pop transition-colors hover:text-deep-ube"
+              className="w-fit text-[13px] font-bold whitespace-pre text-ube-pop transition-colors hover:text-deep-ube"
             >
               {"＋  Tambah item lain"}
             </button>
             <div className="flex items-center justify-between gap-4 rounded-[9px] bg-vanilla px-3.5 py-3">
               <div className="flex flex-col gap-0.5">
-                <p className="text-xs font-bold text-ink">Total pesanan</p>
+                <p className="text-sm font-bold text-ink">Total pesanan</p>
                 {shippingFee > 0 && (
-                  <p className="text-[10px] text-plum">
+                  <p className="text-xs text-plum">
                     {formatRupiah(subtotal)} + ongkir {formatRupiah(shippingFee)}
                   </p>
                 )}
@@ -431,10 +431,10 @@ function ManualOrderComponent() {
             </p>
             <label className="flex h-[164px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border border-ube-line bg-vanilla px-4 text-center transition-colors focus-within:border-ube-pop hover:border-ube-pop">
               <CloudUpload aria-hidden className="size-[26px] text-ube-pop" />
-              <span className="text-xs font-bold break-all text-ink">
+              <span className="text-sm font-bold break-all text-ink">
                 {proof ? proof.name : "Unggah bukti pembayaran"}
               </span>
-              <span className="text-[10px] text-plum">PNG, JPG atau PDF · maks. 10 MB</span>
+              <span className="text-xs text-plum">PNG, JPG atau PDF · maks. 10 MB</span>
               <input
                 type="file"
                 aria-labelledby="proof-label"
@@ -446,8 +446,8 @@ function ManualOrderComponent() {
           </section>
 
           <div className="flex flex-col gap-[5px] rounded-[10px] bg-vanilla p-3.5">
-            <p className="text-xs font-extrabold text-deep-ube">{paymentNote.title}</p>
-            <p className="text-[10px] text-plum">{paymentNote.body}</p>
+            <p className="text-sm font-extrabold text-deep-ube">{paymentNote.title}</p>
+            <p className="text-xs text-plum">{paymentNote.body}</p>
           </div>
 
           {errors.form && (
@@ -462,7 +462,7 @@ function ManualOrderComponent() {
           >
             {submitting ? "Menyimpan…" : "Simpan & kirim pesanan  →"}
           </button>
-          <p className="text-[10px] text-plum">Pastikan data pelanggan dan nominal sesuai bukti.</p>
+          <p className="text-xs text-plum">Pastikan data pelanggan dan nominal sesuai bukti.</p>
         </div>
       </form>
     </AdminPage>

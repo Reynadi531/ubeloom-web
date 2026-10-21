@@ -37,7 +37,7 @@ const navItems: NavItem[] = [
 ];
 
 const itemClassName =
-  "flex items-center gap-[11px] rounded-[11px] px-[13px] py-[11px] text-xs transition-colors";
+  "flex items-center gap-[11px] rounded-[11px] px-[13px] py-[11px] text-sm transition-colors";
 
 const drawerId = "admin-sidebar-drawer";
 
@@ -153,7 +153,7 @@ function SidebarContent({ user, onNavigate }: { user: SidebarUser; onNavigate?: 
         />
       </Link>
 
-      <p className="text-[10px] font-bold tracking-[1.6px] text-plum">RUANG KERJA</p>
+      <p className="text-xs font-bold tracking-[1.6px] text-plum">RUANG KERJA</p>
 
       <nav aria-label="Navigasi admin" className="flex flex-col gap-1.5">
         {navItems.map(({ label, icon: Icon, to, exact }) => (
@@ -175,13 +175,13 @@ function SidebarContent({ user, onNavigate }: { user: SidebarUser; onNavigate?: 
       </nav>
 
       <div className="mt-auto flex flex-col gap-[5px] border-t border-ube-line px-1 pt-4">
-        <p className="text-[10px] font-bold tracking-[1px] text-plum">MASUK SEBAGAI</p>
+        <p className="text-xs font-bold tracking-[1px] text-plum">MASUK SEBAGAI</p>
         <p className="truncate text-[13px] font-bold text-ink">{user.name}</p>
-        <p className="truncate text-[11px] text-plum">{user.email}</p>
+        <p className="truncate text-[13px] text-plum">{user.email}</p>
         <button
           type="button"
           onClick={signOut}
-          className="w-fit text-[11px] font-semibold text-deep-ube transition-colors hover:text-ube-pop"
+          className="w-fit text-[13px] font-semibold text-deep-ube transition-colors hover:text-ube-pop"
         >
           Sesi aman · Keluar ↗
         </button>

@@ -75,7 +75,7 @@ function VouchersComponent() {
         }
       />
 
-      <p className="text-[11px] text-plum">
+      <p className="text-[13px] text-plum">
         {vouchers.length} voucher · {active} sedang berlaku. Kuota dihitung dari pesanan yang tidak
         dibatalkan; membatalkan pesanan mengembalikan kuotanya.
       </p>
@@ -83,7 +83,7 @@ function VouchersComponent() {
       {vouchers.length === 0 ? (
         <section className={`${cardClassName} flex flex-col items-start gap-2 p-5`}>
           <h2 className="text-[15px] font-extrabold text-ink">Belum ada voucher</h2>
-          <p className="text-[11px] text-plum">
+          <p className="text-[13px] text-plum">
             Buat potongan persen atau rupiah untuk semua produk, atau atur diskon berbeda untuk tiap
             produk.
           </p>
@@ -158,21 +158,21 @@ function VoucherCard({ voucher, onEdit }: { voucher: VoucherRow; onEdit: () => v
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="font-data text-[15px] font-bold break-all text-deep-ube">{voucher.code}</p>
-          {voucher.description && <p className="text-[11px] text-plum">{voucher.description}</p>}
+          {voucher.description && <p className="text-[13px] text-plum">{voucher.description}</p>}
         </div>
         <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
       </div>
 
       <div className="rounded-lg bg-vanilla px-3 py-[11px]">
         {voucher.scope !== "products" && voucher.discountType && voucher.value ? (
-          <p className="text-[11px] font-bold text-ink">
+          <p className="text-[13px] font-bold text-ink">
             Diskon {discountLabel(voucher.discountType, voucher.value)}{" "}
             {voucher.scope === "shipping" ? "ongkos kirim" : "semua produk"}
           </p>
         ) : (
           <ul className="flex flex-col gap-1">
             {voucher.items.map((item) => (
-              <li key={item.productId} className="flex justify-between gap-3 text-[11px]">
+              <li key={item.productId} className="flex justify-between gap-3 text-[13px]">
                 <span className="truncate text-ink">{item.productName}</span>
                 <span className="shrink-0 font-bold text-deep-ube">
                   −{discountLabel(item.discountType, item.value, true)}
@@ -181,7 +181,7 @@ function VoucherCard({ voucher, onEdit }: { voucher: VoucherRow; onEdit: () => v
             ))}
           </ul>
         )}
-        <p className="mt-1.5 text-[10px] text-plum">
+        <p className="mt-1.5 text-xs text-plum">
           {[
             voucher.minSubtotal > 0 && `Min. belanja ${formatRupiah(voucher.minSubtotal)}`,
             voucher.maxDiscount !== null && `Maks. diskon ${formatRupiah(voucher.maxDiscount)}`,
@@ -192,7 +192,7 @@ function VoucherCard({ voucher, onEdit }: { voucher: VoucherRow; onEdit: () => v
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <div className="flex justify-between gap-3 text-[10px] font-bold">
+        <div className="flex justify-between gap-3 text-xs font-bold">
           <span className="text-plum">KUOTA TERPAKAI</span>
           <span className="text-deep-ube">
             {voucher.used} / {voucher.quota ?? "∞"}
@@ -210,7 +210,7 @@ function VoucherCard({ voucher, onEdit }: { voucher: VoucherRow; onEdit: () => v
             <div className="h-full bg-ube-pop" style={{ width: `${usage * 100}%` }} />
           </div>
         )}
-        <p className="text-[10px] text-plum">{period}</p>
+        <p className="text-xs text-plum">{period}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -240,7 +240,7 @@ function VoucherCard({ voucher, onEdit }: { voucher: VoucherRow; onEdit: () => v
             type="button"
             disabled={pending}
             onClick={remove}
-            className="text-[11px] font-bold text-plum transition-colors hover:text-[#b42318] disabled:opacity-50"
+            className="text-[13px] font-bold text-plum transition-colors hover:text-[#b42318] disabled:opacity-50"
           >
             Hapus
           </button>
@@ -397,8 +397,8 @@ function VoucherForm({
         </div>
       ) : (
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1.5 text-[11px] font-bold text-ink">Diskon per produk</legend>
-          <span className="text-[10px] text-plum">
+          <legend className="mb-1.5 text-[13px] font-bold text-ink">Diskon per produk</legend>
+          <span className="text-xs text-plum">
             Persen memotong total baris produk; potongan rupiah berlaku untuk setiap item (tidak
             melebihi harga item).
           </span>
@@ -464,14 +464,14 @@ function VoucherForm({
                   { productId: unused[0].id, discountType: "percentage", value: "" },
                 ])
               }
-              className="flex w-fit items-center gap-1.5 text-[11px] font-bold text-deep-ube hover:text-ube-pop"
+              className="flex w-fit items-center gap-1.5 text-[13px] font-bold text-deep-ube hover:text-ube-pop"
             >
               <Plus className="size-3.5" />
               Tambah produk
             </button>
           ) : (
             products.length === 0 && (
-              <span className="text-[10px] text-plum">Belum ada produk di katalog.</span>
+              <span className="text-xs text-plum">Belum ada produk di katalog.</span>
             )
           )}
         </fieldset>
@@ -534,7 +534,7 @@ function VoucherForm({
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-xs font-semibold text-ink">
+      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
         <input
           type="checkbox"
           checked={form.active}

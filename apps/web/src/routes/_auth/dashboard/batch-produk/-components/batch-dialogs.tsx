@@ -171,8 +171,8 @@ function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: 
         </Field>
       </div>
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="mb-1.5 text-[11px] font-bold text-ink">Cara pengiriman</legend>
-        <label className="flex items-center gap-1.5 text-[11px] font-bold text-ink">
+        <legend className="mb-1.5 text-[13px] font-bold text-ink">Cara pengiriman</legend>
+        <label className="flex items-center gap-1.5 text-[13px] font-bold text-ink">
           <input
             type="checkbox"
             checked={form.pickupEnabled}
@@ -181,7 +181,7 @@ function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: 
           />
           Ambil sendiri (pickup)
         </label>
-        <label className="flex items-center gap-1.5 text-[11px] font-bold text-ink">
+        <label className="flex items-center gap-1.5 text-[13px] font-bold text-ink">
           <input
             type="checkbox"
             checked={form.deliveryEnabled}
@@ -190,7 +190,7 @@ function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: 
           />
           Diantar (delivery)
         </label>
-        <span className="text-[10px] text-plum">
+        <span className="text-xs text-plum">
           Cara yang dimatikan tidak bisa dipilih di checkout maupun pesanan manual.
         </span>
       </fieldset>
@@ -346,7 +346,7 @@ function PickupSlotForm({
             required
           />
         </Field>
-        <label className="flex h-[41px] items-center gap-1.5 text-[11px] font-bold text-ink">
+        <label className="flex h-[41px] items-center gap-1.5 text-[13px] font-bold text-ink">
           <input
             type="checkbox"
             checked={form.active}
@@ -357,7 +357,7 @@ function PickupSlotForm({
         </label>
         <div className="ml-auto flex h-[41px] items-center gap-2">
           {slot && (
-            <span className="text-[10px] font-bold text-deep-ube">
+            <span className="text-xs font-bold text-deep-ube">
               {slot.filled} / {slot.capacity} terisi
             </span>
           )}
@@ -502,7 +502,7 @@ function DeliveryZoneForm({
             required
           />
         </Field>
-        <label className="flex h-[41px] items-center gap-1.5 text-[11px] font-bold text-ink">
+        <label className="flex h-[41px] items-center gap-1.5 text-[13px] font-bold text-ink">
           <input
             type="checkbox"
             checked={form.active}
@@ -528,9 +528,9 @@ function DeliveryZoneForm({
         </div>
         <fieldset className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5">
           <legend className="sr-only">Area dilayani</legend>
-          <span className="text-[11px] font-bold text-ink">Area:</span>
+          <span className="text-[13px] font-bold text-ink">Area:</span>
           {[...new Set([...deliveryAreas, ...form.areas])].map((area) => (
-            <label key={area} className="flex items-center gap-1.5 text-[11px] text-ink">
+            <label key={area} className="flex items-center gap-1.5 text-[13px] text-ink">
               <input
                 type="checkbox"
                 checked={form.areas.includes(area)}
@@ -548,7 +548,7 @@ function DeliveryZoneForm({
               {!deliveryAreas.includes(area) && " (tidak ada di Pengaturan)"}
             </label>
           ))}
-          {form.areas.length === 0 && <span className="text-[10px] text-plum">Semua area</span>}
+          {form.areas.length === 0 && <span className="text-xs text-plum">Semua area</span>}
         </fieldset>
       </form>
     </li>

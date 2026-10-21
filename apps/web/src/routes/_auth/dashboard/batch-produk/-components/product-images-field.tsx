@@ -79,12 +79,12 @@ export function ProductImagesField({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <p className="text-[13px] font-bold text-ink">Foto produk</p>
-          <p className="text-[11px] text-plum">
+          <p className="text-[13px] text-plum">
             Foto pertama tampil di katalog; semua foto tampil sebagai carousel di halaman detail.
             JPG, PNG atau WEBP, maks. {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.
           </p>
         </div>
-        <p className="font-data text-[11px] font-bold text-plum">
+        <p className="font-data text-[13px] font-bold text-plum">
           {images.length} / {MAX_PRODUCT_IMAGES}
         </p>
       </div>
@@ -101,7 +101,7 @@ export function ProductImagesField({
               className="size-full object-cover"
             />
             {index === 0 && (
-              <span className="absolute top-1.5 left-1.5 rounded-md bg-deep-ube px-1.5 py-1 text-[9px]/[11px] font-bold tracking-[0.5px] text-white">
+              <span className="absolute top-1.5 left-1.5 rounded-md bg-deep-ube px-1.5 py-1 text-[11px]/[11px] font-bold tracking-[0.5px] text-white">
                 UTAMA
               </span>
             )}
@@ -150,7 +150,7 @@ export function ProductImagesField({
         {Array.from({ length: uploading }, (_, index) => (
           <li
             key={`uploading-${index}`}
-            className="flex aspect-square animate-pulse items-center justify-center rounded-lg bg-vanilla text-[10px] font-bold text-plum"
+            className="flex aspect-square animate-pulse items-center justify-center rounded-lg bg-vanilla text-xs font-bold text-plum"
           >
             Mengunggah…
           </li>
@@ -159,7 +159,7 @@ export function ProductImagesField({
           <li className="aspect-square">
             <label
               htmlFor={inputId}
-              className="flex size-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-ube-line text-[11px] font-bold text-deep-ube transition-colors hover:bg-vanilla focus-within:border-ube-pop"
+              className="flex size-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-ube-line text-[13px] font-bold text-deep-ube transition-colors hover:bg-vanilla focus-within:border-ube-pop"
             >
               <ImagePlus aria-hidden className="size-5" />
               Tambah foto

@@ -7,15 +7,14 @@
  * while the row is inside the window.
  */
 import type { Database } from "@web-kwu/db";
-import type { createStorage } from "@web-kwu/storage";
 
-import { orderMessage, paymentMessage } from "./format";
+import { buildPaymentCard, sendPaymentCard, type Storage } from "./cards";
+import { orderMessage } from "./format";
+import { orderKeyboard } from "./keyboards";
 import { ordersSince, pendingPayments, type PendingPaymentRow } from "./queries";
-import { escapeHtml, type Telegram } from "./telegram";
+import type { Telegram } from "./telegram";
 
 const OVERLAP_MS = 2 * 60 * 1000;
-
-type Storage = ReturnType<typeof createStorage>;
 
 export type NotifierOptions = {
   db: Database;
@@ -32,32 +31,14 @@ export function createNotifier({ db, telegram, storage, chatIds, dashboardUrl }:
 
   const markSent = (key: string, createdAt: Date) => sent.set(key, createdAt.getTime());
 
-  async function loadProof(row: PendingPaymentRow) {
-    if (!storage || !row.proofKey) return null;
-    try {
-      const object = await storage.getObject(row.proofKey);
-      if (!object) return null;
-      const headers = { "content-type": object.contentType ?? "application/octet-stream" };
-      return await new Response(object.body, { headers }).blob();
-    } catch (error) {
-      console.error(`[notifier] proof ${row.proofKey} unavailable`, error);
-      return null;
-    }
-  }
-
   async function notifyPayment(row: PendingPaymentRow) {
     const targets = chatIds.filter((chatId) => !sent.has(`payment:${row.id}:${chatId}`));
     if (targets.length === 0) return;
 
-    let caption = paymentMessage(row, dashboardUrl);
-    if (row.proofUrl) caption += `\n<a href="${escapeHtml(row.proofUrl)}">Bukti (tautan)</a>`;
-    const proof = await loadProof(row);
-    const filename = row.proofKey?.split("/").pop() ?? "bukti";
-
+    const card = await buildPaymentCard(row, storage, dashboardUrl);
     for (const chatId of targets) {
       try {
-        if (proof) await telegram.sendFile(chatId, proof, filename, caption);
-        else await telegram.sendMessage(chatId, caption);
+        await sendPaymentCard(telegram, chatId, row.id, card);
         markSent(`payment:${row.id}:${chatId}`, row.createdAt);
       } catch (error) {
         console.error(`[notifier] payment ${row.id} → ${chatId} failed`, error);
@@ -70,16 +51,16 @@ export function createNotifier({ db, telegram, storage, chatIds, dashboardUrl }:
     const since = new Date(lastPollAt - OVERLAP_MS);
     const [orders, payments] = await Promise.all([
       ordersSince(db, since),
-      pendingPayments(db, since),
+      pendingPayments(db, { since }),
     ]);
 
     for (const row of orders) {
-      const message = orderMessage(row, dashboardUrl);
+      const message = orderMessage(row, dashboardUrl, "🛒 <b>Pesanan baru</b>");
       for (const chatId of chatIds) {
         const key = `order:${row.id}:${chatId}`;
         if (sent.has(key)) continue;
         try {
-          await telegram.sendMessage(chatId, message);
+          await telegram.sendMessage(chatId, message, orderKeyboard(row));
           markSent(key, row.createdAt);
         } catch (error) {
           console.error(`[notifier] order ${row.invoiceNumber} → ${chatId} failed`, error);
@@ -100,7 +81,7 @@ export function createNotifier({ db, telegram, storage, chatIds, dashboardUrl }:
       const since = new Date(lastPollAt - OVERLAP_MS);
       const [orders, payments] = await Promise.all([
         ordersSince(db, since),
-        pendingPayments(db, since),
+        pendingPayments(db, { since }),
       ]);
       for (const chatId of chatIds) {
         for (const row of orders) markSent(`order:${row.id}:${chatId}`, row.createdAt);

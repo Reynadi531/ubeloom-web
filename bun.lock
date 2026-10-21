@@ -22,6 +22,7 @@
       "name": "bot",
       "dependencies": {
         "@web-kwu/db": "workspace:*",
+        "@web-kwu/shop": "workspace:*",
         "@web-kwu/storage": "workspace:*",
         "drizzle-orm": "catalog:",
         "varlock": "catalog:",
@@ -43,6 +44,7 @@
         "@varlock/vite-integration": "1.5.1",
         "@web-kwu/auth": "workspace:*",
         "@web-kwu/db": "workspace:*",
+        "@web-kwu/shop": "workspace:*",
         "@web-kwu/storage": "workspace:*",
         "@web-kwu/ui": "workspace:*",
         "better-auth": "catalog:",
@@ -105,6 +107,17 @@
         "drizzle-kit": "1.0.0-rc.4",
         "typescript": "catalog:",
         "varlock": "catalog:",
+      },
+    },
+    "packages/shop": {
+      "name": "@web-kwu/shop",
+      "dependencies": {
+        "@web-kwu/db": "workspace:*",
+        "drizzle-orm": "catalog:",
+      },
+      "devDependencies": {
+        "@web-kwu/config": "workspace:*",
+        "typescript": "catalog:",
       },
     },
     "packages/storage": {
@@ -662,6 +675,8 @@
     "@web-kwu/config": ["@web-kwu/config@workspace:packages/config"],
 
     "@web-kwu/db": ["@web-kwu/db@workspace:packages/db"],
+
+    "@web-kwu/shop": ["@web-kwu/shop@workspace:packages/shop"],
 
     "@web-kwu/storage": ["@web-kwu/storage@workspace:packages/storage"],
 

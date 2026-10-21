@@ -1,4 +1,13 @@
 /** Telegram message bodies. All times render in WIB (Asia/Jakarta). */
+import {
+  type FulfillmentStatus,
+  type PaymentStatus,
+  fulfillmentStatusLabels,
+  paymentChecklist,
+  paymentStatusLabels,
+} from "@web-kwu/shop/rules";
+
+import type { BatchRow, VoucherRow } from "./queries";
 import { escapeHtml } from "./telegram";
 
 const TIME_ZONE = "Asia/Jakarta";
@@ -18,9 +27,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat("id-ID", {
 export const formatDateTime = (value: Date) =>
   dateTimeFormatter.format(value).replace(",", "").replace(":", ".");
 
-const paymentLabels = { unpaid: "Belum bayar", review: "Ditinjau", paid: "Lunas" } as const;
-
-export type NewOrder = {
+export type OrderRow = {
   id: string;
   invoiceNumber: string;
   customerName: string;
@@ -29,7 +36,8 @@ export type NewOrder = {
   deliveryArea: string | null;
   address: string | null;
   paymentMethod: string;
-  paymentStatus: keyof typeof paymentLabels;
+  paymentStatus: PaymentStatus;
+  fulfillmentStatus: FulfillmentStatus;
   total: number;
   notes: string | null;
   createdById: string | null;
@@ -58,7 +66,14 @@ export type PendingPayment = {
 
 const link = (href: string, label: string) => `<a href="${escapeHtml(href)}">${label}</a>`;
 
-export function orderMessage(row: NewOrder, dashboardUrl: string) {
+export const orderUrl = (dashboardUrl: string, invoiceNumber: string) =>
+  `${dashboardUrl}/dashboard/pesanan?q=${encodeURIComponent(invoiceNumber)}`;
+
+export const paymentUrl = (dashboardUrl: string, attemptId: string) =>
+  `${dashboardUrl}/dashboard/verifikasi-bayar?attempt=${encodeURIComponent(attemptId)}`;
+
+/** Order card; `title` distinguishes a new-order alert from a looked-up order. */
+export function orderMessage(row: OrderRow, dashboardUrl: string, title: string) {
   const e = escapeHtml;
   const schedule =
     row.method === "pickup"
@@ -69,10 +84,9 @@ export function orderMessage(row: NewOrder, dashboardUrl: string) {
   const items = row.items.map(
     (item) => `• ${item.quantity}× ${e(item.productName)} — ${formatRupiah(item.lineTotal)}`,
   );
-  const url = `${dashboardUrl}/dashboard/pesanan?q=${encodeURIComponent(row.invoiceNumber)}`;
 
   return [
-    `🛒 <b>Pesanan baru${row.createdById ? " (manual)" : ""}</b>`,
+    `${title}${row.createdById ? " (manual)" : ""}`,
     `<code>${e(row.invoiceNumber)}</code> · ${e(row.batch.name)}`,
     "",
     `👤 ${e(row.customerName)} · ${e(row.customerPhone)}`,
@@ -81,12 +95,16 @@ export function orderMessage(row: NewOrder, dashboardUrl: string) {
     "",
     ...items,
     "",
-    `💰 <b>${formatRupiah(row.total)}</b> · ${e(row.paymentMethod)} · ${paymentLabels[row.paymentStatus]}`,
+    `💰 <b>${formatRupiah(row.total)}</b> · ${e(row.paymentMethod)} · ${paymentStatusLabels[row.paymentStatus]}`,
+    `📦 ${fulfillmentStatusLabels[row.fulfillmentStatus]}`,
     ...(row.notes ? [`📝 ${e(row.notes)}`] : []),
     "",
-    link(url, "Buka pesanan →"),
+    link(orderUrl(dashboardUrl, row.invoiceNumber), "Buka di dashboard →"),
   ].join("\n");
 }
+
+/** Customer references are free text; keep captions under Telegram's 1024-char limit. */
+const MAX_REFERENCE_LENGTH = 120;
 
 export function paymentMessage(row: PendingPayment, dashboardUrl: string) {
   const e = escapeHtml;
@@ -94,7 +112,10 @@ export function paymentMessage(row: PendingPayment, dashboardUrl: string) {
     row.claimedAmount === row.order.total
       ? `${formatRupiah(row.claimedAmount)} ✅ sesuai total`
       : `${formatRupiah(row.claimedAmount)} ⚠️ total ${formatRupiah(row.order.total)}`;
-  const url = `${dashboardUrl}/dashboard/verifikasi-bayar?attempt=${encodeURIComponent(row.id)}`;
+  const reference =
+    Array.from(row.customerReference).length > MAX_REFERENCE_LENGTH
+      ? `${Array.from(row.customerReference).slice(0, MAX_REFERENCE_LENGTH).join("")}…`
+      : row.customerReference;
 
   return [
     `💳 <b>Verifikasi bayar</b> · percobaan #${row.attempt}`,
@@ -102,22 +123,21 @@ export function paymentMessage(row: PendingPayment, dashboardUrl: string) {
     "",
     `👤 ${e(row.order.customerName)} · ${e(row.order.customerPhone)}`,
     `💰 ${amount}`,
-    `🏦 ${e(row.order.paymentMethod)} · ref <code>${e(row.customerReference)}</code>`,
+    `🏦 ${e(row.order.paymentMethod)} · ref <code>${e(reference)}</code>`,
     `🕒 Dibayar ${formatDateTime(row.claimedPaidAt)}`,
     "",
-    link(url, "Tinjau pembayaran →"),
+    link(paymentUrl(dashboardUrl, row.id), "Buka di dashboard →"),
   ].join("\n");
 }
 
-export function pendingListMessage(rows: PendingPayment[], dashboardUrl: string) {
-  if (rows.length === 0) return "✅ Tidak ada pembayaran yang menunggu verifikasi.";
-  const lines = rows.map((row) => {
-    const url = `${dashboardUrl}/dashboard/verifikasi-bayar?attempt=${encodeURIComponent(row.id)}`;
-    return `• ${link(url, escapeHtml(row.order.invoiceNumber))} · ${escapeHtml(
-      row.order.customerName,
-    )} · ${formatRupiah(row.claimedAmount)} · ${formatDateTime(row.createdAt)}`;
-  });
-  return [`💳 <b>${rows.length} pembayaran menunggu verifikasi</b>`, "", ...lines].join("\n");
+export function approveConfirmMessage(invoiceNumber: string, merchantReference: string) {
+  return [
+    `Setujui pembayaran <code>${escapeHtml(invoiceNumber)}</code>?`,
+    `Referensi merchant: <code>${escapeHtml(merchantReference)}</code>`,
+    "",
+    "Pastikan:",
+    ...paymentChecklist.map((item) => `☑️ ${item}`),
+  ].join("\n");
 }
 
 export type DailySummary = {
@@ -140,3 +160,52 @@ export function summaryMessage(summary: DailySummary, pendingCount: number) {
     `💳 Antrean verifikasi (semua): ${pendingCount}`,
   ].join("\n");
 }
+
+export const batchStatusLabels = {
+  draft: "Draf",
+  open: "Dibuka",
+  closed: "Ditutup",
+  archived: "Diarsipkan",
+} as const;
+
+export function batchListMessage(rows: BatchRow[]) {
+  if (rows.length === 0) return "Belum ada batch.";
+  const lines = rows.map(
+    (row) =>
+      `• <b>${escapeHtml(row.name)}</b> · ${batchStatusLabels[row.status]} · ${row.orders} pesanan\n  ${formatDateTime(row.opensAt)} – ${formatDateTime(row.closesAt)}`,
+  );
+  return [
+    "🗓 <b>Batch</b>",
+    "",
+    ...lines,
+    "",
+    "Membuka batch otomatis menutup batch lain yang sedang dibuka.",
+  ].join("\n");
+}
+
+export function voucherListMessage(rows: VoucherRow[]) {
+  if (rows.length === 0) return "Belum ada voucher.";
+  return [
+    "🎟 <b>Voucher</b>",
+    "",
+    ...rows.map(
+      (row) =>
+        `${row.active ? "🟢" : "⚪️"} <code>${escapeHtml(row.code)}</code>${
+          row.description ? ` — ${escapeHtml(row.description)}` : ""
+        }`,
+    ),
+    "",
+    "Ketuk voucher untuk mengaktifkan / menonaktifkan.",
+  ].join("\n");
+}
+
+export const helpMessage = [
+  "🤖 <b>Perintah</b>",
+  "",
+  "/pending — pembayaran yang menunggu verifikasi (bisa setujui/tolak)",
+  "/order &lt;invoice / nama / no. HP&gt; — cari pesanan, ubah status",
+  "/ringkasan — ringkasan pesanan hari ini",
+  "/batch — buka / tutup batch",
+  "/voucher — aktifkan / nonaktifkan voucher",
+  "/start — tampilkan chat id",
+].join("\n");

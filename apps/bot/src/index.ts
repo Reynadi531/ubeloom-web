@@ -3,7 +3,8 @@ import "varlock/auto-load";
 import { createDb } from "@web-kwu/db";
 import { createStorage } from "@web-kwu/storage";
 
-import { COMMANDS, runCommands } from "./commands";
+import { parseAdmins, resolveAdmins } from "./admins";
+import { COMMANDS, createBot } from "./commands";
 import { ENV } from "./env";
 import { createNotifier } from "./notifier";
 import { pendingPayments } from "./queries";
@@ -42,6 +43,11 @@ if (chatIds.length === 0) {
 }
 if (!storage) console.warn("[bot] S3 not configured; payment proofs are not attached");
 
+const admins = await resolveAdmins(db, parseAdmins(ENV.TELEGRAM_ADMINS));
+if (admins.size === 0) {
+  console.warn("[bot] TELEGRAM_ADMINS is empty; buttons that change data are disabled");
+}
+
 await telegram.setMyCommands(COMMANDS).catch((error) => {
   console.error("[bot] setMyCommands failed", error);
 });
@@ -62,8 +68,11 @@ if (pending.length > 0) {
   }
 }
 
-console.log(`[bot] running · ${chatIds.length} chat(s) · poll every ${ENV.POLL_INTERVAL_SECONDS}s`);
+console.log(
+  `[bot] running · ${chatIds.length} chat(s) · ${admins.size} admin(s) · poll every ${ENV.POLL_INTERVAL_SECONDS}s`,
+);
+const bot = createBot({ db, telegram, storage, chatIds, admins, dashboardUrl });
 await Promise.all([
   notifier.run(ENV.POLL_INTERVAL_SECONDS * 1000, controller.signal),
-  runCommands({ db, telegram, chatIds, dashboardUrl }, controller.signal),
+  bot.run(controller.signal),
 ]);

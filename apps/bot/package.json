@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@web-kwu/db": "workspace:*",
+    "@web-kwu/shop": "workspace:*",
     "@web-kwu/storage": "workspace:*",
     "drizzle-orm": "catalog:",
     "varlock": "catalog:"

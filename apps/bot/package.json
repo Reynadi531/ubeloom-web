@@ -1,0 +1,22 @@
+{
+  "name": "bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "check-types": "tsc --noEmit",
+    "env:generate": "varlock codegen"
+  },
+  "dependencies": {
+    "@web-kwu/db": "workspace:*",
+    "@web-kwu/storage": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "varlock": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "@web-kwu/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

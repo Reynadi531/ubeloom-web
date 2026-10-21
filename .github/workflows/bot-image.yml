@@ -1,0 +1,72 @@
+name: Bot image
+
+on:
+  push:
+    branches: [main]
+    tags: ["bot-v*"]
+    paths:
+      - apps/bot/**
+      - packages/config/**
+      - packages/db/**
+      - packages/storage/**
+      - package.json
+      - bun.lock
+      - .dockerignore
+      - .github/workflows/bot-image.yml
+  pull_request:
+    paths:
+      - apps/bot/**
+      - packages/config/**
+      - packages/db/**
+      - packages/storage/**
+      - package.json
+      - bun.lock
+      - .dockerignore
+      - .github/workflows/bot-image.yml
+  workflow_dispatch:
+
+concurrency:
+  group: bot-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Image names must be lowercase; metadata-action lowercases them.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}-bot
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=match,pattern=bot-v(.*),group=1
+            type=ref,event=pr
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/bot/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=bot
+          cache-to: type=gha,scope=bot,mode=max

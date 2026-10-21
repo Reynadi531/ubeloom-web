@@ -34,6 +34,22 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  bot:
+    image: ghcr.io/reynadi531/ubeloom-web-bot:latest
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    init: true
+    env_file:
+      - path: apps/bot/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/web-kwu
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:18
     container_name: web-kwu-postgres

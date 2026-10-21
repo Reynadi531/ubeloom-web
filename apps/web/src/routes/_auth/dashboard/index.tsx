@@ -361,7 +361,7 @@ function OrderGrowthChart({ range, points }: LoadedOverview["growth"]) {
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-display text-lg/[1.2] font-bold text-ink">Pertumbuhan pesanan</h2>
-          <p className="text-[11px] text-plum">Akumulasi pesanan aktif · {range}</p>
+          <p className="text-[11px] text-plum">Pesanan aktif harian · {range}</p>
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <p className="font-display text-lg/[1.2] font-bold text-deep-ube">
@@ -371,7 +371,7 @@ function OrderGrowthChart({ range, points }: LoadedOverview["growth"]) {
         </div>
       </div>
 
-      <ol className="flex h-[139px] items-end gap-[9px]" aria-label="Akumulasi pesanan per hari">
+      <ol className="flex h-[139px] items-end gap-[9px]" aria-label="Jumlah pesanan per hari">
         {points.map(({ day, total }) => (
           <li
             key={day}

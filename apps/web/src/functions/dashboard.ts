@@ -145,13 +145,10 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
       .at(-1)!;
     const days = dayRange(firstDay, lastDay < firstDay ? firstDay : lastDay).slice(-GROWTH_DAYS);
     const totals = new Map(perDay.map(({ day, total }) => [day, total]));
-    let running = perDay
-      .filter(({ day }) => day < days[0]!)
-      .reduce((sum, { total }) => sum + total, 0);
-    const orderGrowth = days.map((day) => {
-      running += totals.get(day) ?? 0;
-      return { day: formatDayMonth(wibDay(day)), total: running };
-    });
+    const orderGrowth = days.map((day) => ({
+      day: formatDayMonth(wibDay(day)),
+      total: totals.get(day) ?? 0,
+    }));
 
     const hasPickup = (slots?.count ?? 0) > 0;
     const hasDelivery = (zones?.count ?? 0) > 0;

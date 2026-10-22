@@ -11,6 +11,38 @@ import {
   productImageUrl,
 } from "@/lib/product-images";
 
+/** Longest side of a stored photo; detail pages show it at most ~600 CSS px wide. */
+const MAX_IMAGE_SIDE = 1600;
+
+/**
+ * Downscales and re-encodes a photo in the browser so the storefront never serves
+ * multi-megabyte camera files. Falls back to the original when the browser can't
+ * decode it or the result would not be smaller.
+ */
+async function shrinkImage(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const encode = (type: string) =>
+      new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.82));
+    // Safari has no WEBP encoder and silently returns PNG instead.
+    let blob = await encode("image/webp");
+    if (blob?.type !== "image/webp") blob = await encode("image/jpeg");
+    if (!blob || blob.size >= file.size) return file;
+
+    const ext = blob.type === "image/webp" ? "webp" : "jpg";
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + `.${ext}`, { type: blob.type });
+  } catch {
+    return file;
+  }
+}
+
 const iconButtonClassName =
   "flex size-7 items-center justify-center rounded-md bg-white/90 text-deep-ube transition-colors hover:bg-vanilla disabled:opacity-40";
 
@@ -54,7 +86,7 @@ export function ProductImagesField({
     for (const file of accepted) {
       try {
         const data = new FormData();
-        data.set("file", file);
+        data.set("file", await shrinkImage(file));
         const { key } = await uploadProductImage({ data });
         onChange((current) => [...current, key]);
       } catch (error) {

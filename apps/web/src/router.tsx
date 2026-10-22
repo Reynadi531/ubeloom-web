@@ -8,7 +8,8 @@ export const getRouter = () => {
   const router = createTanStackRouter({
     routeTree,
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    // Loaders start on hover/touch, so most clicks land on data that is already loaded.
+    defaultPreload: "intent",
     context: {},
     defaultPendingComponent: () => <Loader />,
     defaultNotFoundComponent: () => <NotFoundPage />,

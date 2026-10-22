@@ -25,6 +25,7 @@ export default function ProductCard({ product }: { product: Product }) {
           src={image.mobile}
           alt={name}
           loading="lazy"
+          decoding="async"
           className="h-[148px] w-full object-cover lg:h-[260px]"
         />
       </picture>

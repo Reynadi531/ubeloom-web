@@ -228,21 +228,23 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
 /* -------------------------------------------------------------------------- */
 
 export async function loadInvoice(token: string) {
-  const row = await db.query.order.findFirst({
-    where: { accessToken: token },
-    with: {
-      batch: true,
-      items: true,
-      vouchers: { orderBy: { position: "asc" } },
-      pickupSlot: true,
-      deliveryZone: true,
-      paymentAttempts: { orderBy: { attempt: "desc" }, limit: 1 },
-    },
-  });
+  const [row, settings] = await Promise.all([
+    db.query.order.findFirst({
+      where: { accessToken: token },
+      with: {
+        batch: true,
+        items: true,
+        vouchers: { orderBy: { position: "asc" } },
+        pickupSlot: true,
+        deliveryZone: true,
+        paymentAttempts: { orderBy: { attempt: "desc" }, limit: 1 },
+      },
+    }),
+    getShopSettings(),
+  ]);
   if (!row) throw notFound();
 
   const latest = row.paymentAttempts[0];
-  const settings = await getShopSettings();
   const window =
     row.method === "pickup"
       ? row.pickupSlot && formatSlot(row.pickupSlot.startsAt, row.pickupSlot.endsAt)

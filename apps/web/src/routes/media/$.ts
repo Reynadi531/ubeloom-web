@@ -21,7 +21,8 @@ export const Route = createFileRoute("/media/$")({
 
         const headers = new Headers({
           "Content-Type": object.contentType ?? "application/octet-stream",
-          "Cache-Control": "public, max-age=31536000, immutable",
+          // s-maxage lets a CDN in front of the app serve repeats without hitting storage.
+          "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
           "X-Content-Type-Options": "nosniff",
         });
         if (object.contentLength != null) {

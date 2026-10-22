@@ -100,15 +100,18 @@ const emptyDisplay: ProductDisplay = {
 };
 
 async function toStorefrontBatch(current: BatchRow): Promise<StorefrontBatch> {
-  const [firstSlot] = await db
-    .select({ startsAt: pickupSlot.startsAt })
-    .from(pickupSlot)
-    .where(and(eq(pickupSlot.batchId, current.id), eq(pickupSlot.active, true)))
-    .orderBy(asc(pickupSlot.startsAt))
-    .limit(1);
+  const [[firstSlot], number] = await Promise.all([
+    db
+      .select({ startsAt: pickupSlot.startsAt })
+      .from(pickupSlot)
+      .where(and(eq(pickupSlot.batchId, current.id), eq(pickupSlot.active, true)))
+      .orderBy(asc(pickupSlot.startsAt))
+      .limit(1),
+    getBatchNumber(current),
+  ]);
 
   return {
-    number: await getBatchNumber(current),
+    number,
     open: current.status === "open",
     closesAt: formatShortDateTime(current.closesAt),
     closesAtShort: formatDateTime(current.closesAt),
@@ -135,13 +138,18 @@ function resolveAvailability(
   return { price, remaining, available, availability: available ? "TERSEDIA" : "HABIS" };
 }
 
+const loadSoldQuantities = (current: BatchRow | undefined) =>
+  current ? getSoldQuantities(current.id) : Promise.resolve(new Map<string, number>());
+
 async function loadPublishedProducts(current: BatchRow | undefined) {
-  const rows = await db.query.product.findMany({
-    where: { published: true },
-    orderBy: { sortOrder: "asc", name: "asc" },
-    with: { batchProducts: { where: { batchId: current?.id ?? "" } } },
-  });
-  const sold = current ? await getSoldQuantities(current.id) : new Map<string, number>();
+  const [rows, sold] = await Promise.all([
+    db.query.product.findMany({
+      where: { published: true },
+      orderBy: { sortOrder: "asc", name: "asc" },
+      with: { batchProducts: { where: { batchId: current?.id ?? "" } } },
+    }),
+    loadSoldQuantities(current),
+  ]);
   return rows.map((row) => ({
     row,
     ...resolveAvailability(current, row, row.batchProducts[0], sold),
@@ -151,10 +159,13 @@ async function loadPublishedProducts(current: BatchRow | undefined) {
 /** Landing + menu page data: current batch and published products as catalog cards. */
 export const getStorefront = createServerFn({ method: "GET" }).handler(async () => {
   const current = await getPublicBatch();
-  const products = await loadPublishedProducts(current);
+  const [products, storefrontBatch] = await Promise.all([
+    loadPublishedProducts(current),
+    current ? toStorefrontBatch(current) : null,
+  ]);
 
   return {
-    batch: current ? await toStorefrontBatch(current) : null,
+    batch: storefrontBatch,
     products: products.map(({ row, price, available, availability }): Product => {
       const display = row.display ?? emptyDisplay;
       const image = productCoverUrl(row.images);
@@ -187,13 +198,15 @@ export const getProduct = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string().min(1) }))
   .handler(async ({ data }): Promise<ProductDetail> => {
     const current = await getPublicBatch();
-    const row = await db.query.product.findFirst({
-      where: { slug: data.slug, published: true },
-      with: { batchProducts: { where: { batchId: current?.id ?? "" } } },
-    });
+    const [row, sold] = await Promise.all([
+      db.query.product.findFirst({
+        where: { slug: data.slug, published: true },
+        with: { batchProducts: { where: { batchId: current?.id ?? "" } } },
+      }),
+      loadSoldQuantities(current),
+    ]);
     if (!row) throw notFound();
 
-    const sold = current ? await getSoldQuantities(current.id) : new Map<string, number>();
     const entry = row.batchProducts[0];
     const { price, remaining, available, availability } = resolveAvailability(
       current,

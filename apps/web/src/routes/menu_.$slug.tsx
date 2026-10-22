@@ -252,6 +252,7 @@ function ProductCarousel({ name, images }: { name: string; images: ProductDetail
                 src={image.src}
                 alt={image.alt}
                 loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
                 draggable={false}
                 className="aspect-square w-full object-cover lg:aspect-auto lg:h-[506px]"
               />

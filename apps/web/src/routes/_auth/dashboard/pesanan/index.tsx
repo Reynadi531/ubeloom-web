@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowUpRight, Copy, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -341,6 +341,18 @@ function OrdersComponent() {
   );
 }
 
+/** Copies the customer's private invoice link, e.g. to resend it over WhatsApp. */
+async function copyInvoiceLink(token: string) {
+  const url = new URL(`/invoice/${token}`, window.location.origin).toString();
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success("Tautan invoice disalin. Kirim hanya ke pelanggan ini.");
+  } catch {
+    // Clipboard is blocked (e.g. insecure origin): let the admin copy it by hand.
+    window.prompt("Salin tautan invoice:", url);
+  }
+}
+
 function SelectedOrder({ order }: { order: OrderListRow }) {
   const paid = order.paymentStatus === "paid";
   const delivery = order.method === "delivery";
@@ -409,6 +421,31 @@ function SelectedOrder({ order }: { order: OrderListRow }) {
         >
           Buat invoice
         </Link>
+      </div>
+      <div className="flex flex-col gap-2 border-t border-ube-line pt-3.5">
+        <p className="text-xs font-semibold text-plum">
+          Halaman invoice pelanggan (tautan pribadi)
+        </p>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            to="/invoice/$token"
+            params={{ token: order.accessToken }}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-fit items-center gap-1.5 rounded-full border border-deep-ube px-[15px] py-[11px] text-sm/none font-bold text-deep-ube transition-colors hover:bg-white"
+          >
+            Lihat invoice
+            <ArrowUpRight aria-hidden className="size-3.5" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => copyInvoiceLink(order.accessToken)}
+            className="inline-flex w-fit items-center gap-1.5 rounded-full border border-deep-ube px-[15px] py-[11px] text-sm/none font-bold text-deep-ube transition-colors hover:bg-white"
+          >
+            <Copy aria-hidden className="size-3.5" />
+            Salin tautan
+          </button>
+        </div>
       </div>
     </section>
   );

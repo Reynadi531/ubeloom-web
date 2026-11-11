@@ -419,7 +419,10 @@ export const orderEvent = pgTable(
     orderId: text("order_id")
       .notNull()
       .references(() => order.id, { onDelete: "cascade" }),
-    /** e.g. "created", "payment_approved", "payment_rejected", "fulfillment_changed", "handover". */
+    /**
+     * e.g. "created", "payment_approved", "payment_auto_approved", "payment_unmatched",
+     * "payment_rejected", "fulfillment_changed", "handover".
+     */
     type: text("type").notNull(),
     fromStatus: text("from_status"),
     toStatus: text("to_status"),

@@ -3,7 +3,15 @@ import { user } from "@web-kwu/db/schema/auth";
 import { order, orderVoucher } from "@web-kwu/db/schema/shop";
 import { and, count, desc, eq, gte, ilike, inArray, ne, or, sql, sum } from "drizzle-orm";
 
-import type { DailySummary, OrderRow, PendingPayment } from "./format";
+import { AUTO_PAYMENT_EVENT, UNMATCHED_PAYMENT_EVENT } from "@web-kwu/shop/rules";
+
+import type {
+  AutoPaymentEvent,
+  DailySummary,
+  OrderRow,
+  PendingPayment,
+  QrisPaymentRow,
+} from "./format";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** WIB is UTC+7 all year. */
@@ -125,6 +133,45 @@ export function pendingPayments(
       },
     },
   });
+}
+
+const customerColumns = { invoiceNumber: true, customerName: true, customerPhone: true } as const;
+
+/** Automatic QRIS payments (QR codes) customers generated after `since`. */
+export function qrisPaymentsSince(db: Database, since: Date): Promise<QrisPaymentRow[]> {
+  return db.query.qrisPayment.findMany({
+    where: { createdAt: { gt: since } },
+    orderBy: { createdAt: "asc" },
+    columns: {
+      id: true,
+      amount: true,
+      uniqueCode: true,
+      totalAmount: true,
+      expiresAt: true,
+      createdAt: true,
+    },
+    with: { order: { columns: customerColumns } },
+  });
+}
+
+/** Orders settled by automatic QRIS, and gateway money that could not settle one, after `since`. */
+export async function autoPaymentEventsSince(
+  db: Database,
+  since: Date,
+): Promise<AutoPaymentEvent[]> {
+  const rows = await db.query.orderEvent.findMany({
+    where: {
+      createdAt: { gt: since },
+      type: { in: [AUTO_PAYMENT_EVENT, UNMATCHED_PAYMENT_EVENT] },
+    },
+    orderBy: { createdAt: "asc" },
+    columns: { id: true, orderId: true, type: true, note: true, createdAt: true },
+    with: { order: { columns: customerColumns } },
+  });
+  return rows.map((row) => ({
+    ...row,
+    kind: row.type === AUTO_PAYMENT_EVENT ? ("paid" as const) : ("unmatched" as const),
+  }));
 }
 
 /** Status and invoice of one attempt, checked before prompting the reviewer. */

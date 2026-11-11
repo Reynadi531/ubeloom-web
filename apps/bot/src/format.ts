@@ -72,8 +72,37 @@ export const orderUrl = (dashboardUrl: string, invoiceNumber: string) =>
 export const paymentUrl = (dashboardUrl: string, attemptId: string) =>
   `${dashboardUrl}/dashboard/verifikasi-bayar?attempt=${encodeURIComponent(attemptId)}`;
 
-/** Order card; `title` distinguishes a new-order alert from a looked-up order. */
-export function orderMessage(row: OrderRow, dashboardUrl: string, title: string) {
+type CustomerRef = { invoiceNumber: string; customerName: string; customerPhone: string };
+
+export type QrisPaymentRow = {
+  id: string;
+  amount: number;
+  uniqueCode: number;
+  totalAmount: number;
+  expiresAt: Date;
+  createdAt: Date;
+  order: CustomerRef;
+};
+
+export type AutoPaymentEvent = {
+  id: string;
+  orderId: string;
+  kind: "paid" | "unmatched";
+  note: string | null;
+  createdAt: Date;
+  order: CustomerRef;
+};
+
+/**
+ * Order card; `title` distinguishes a new-order alert from a looked-up order and
+ * `details` adds lines (already escaped) under it.
+ */
+export function orderMessage(
+  row: OrderRow,
+  dashboardUrl: string,
+  title: string,
+  details: string[] = [],
+) {
   const e = escapeHtml;
   const schedule =
     row.method === "pickup"
@@ -87,6 +116,7 @@ export function orderMessage(row: OrderRow, dashboardUrl: string, title: string)
 
   return [
     `${title}${row.createdById ? " (manual)" : ""}`,
+    ...details,
     `<code>${e(row.invoiceNumber)}</code> · ${e(row.batch.name)}`,
     "",
     `👤 ${e(row.customerName)} · ${e(row.customerPhone)}`,
@@ -127,6 +157,41 @@ export function paymentMessage(row: PendingPayment, dashboardUrl: string) {
     `🕒 Dibayar ${formatDateTime(row.claimedPaidAt)}`,
     "",
     link(paymentUrl(dashboardUrl, row.id), "Buka di dashboard →"),
+  ].join("\n");
+}
+
+/** A customer generated an automatic QRIS code; it is not paid yet. */
+export function qrisCreatedMessage(row: QrisPaymentRow, dashboardUrl: string) {
+  const e = escapeHtml;
+  return [
+    "🧾 <b>Transaksi QRIS otomatis baru</b> · menunggu dibayar",
+    `<code>${e(row.order.invoiceNumber)}</code>`,
+    "",
+    `👤 ${e(row.order.customerName)} · ${e(row.order.customerPhone)}`,
+    `💰 ${formatRupiah(row.totalAmount)} (total ${formatRupiah(row.amount)} + kode unik ${formatRupiah(row.uniqueCode)})`,
+    `⏳ QR berlaku sampai ${formatDateTime(row.expiresAt)}`,
+    "",
+    "Lunas otomatis bila dibayar; tidak perlu verifikasi.",
+    link(orderUrl(dashboardUrl, row.order.invoiceNumber), "Buka di dashboard →"),
+  ].join("\n");
+}
+
+/** Lines under the title of a paid order card: how the gateway settled it. */
+export const autoPaidDetails = (event: AutoPaymentEvent) =>
+  event.note ? [`💳 ${escapeHtml(event.note)}`] : [];
+
+/** Gateway money arrived but did not settle its order (cancelled, already paid, total changed). */
+export function unmatchedPaymentMessage(event: AutoPaymentEvent, dashboardUrl: string) {
+  const e = escapeHtml;
+  return [
+    "⚠️ <b>Dana QRIS otomatis perlu ditinjau</b>",
+    `<code>${e(event.order.invoiceNumber)}</code>`,
+    "",
+    `👤 ${e(event.order.customerName)} · ${e(event.order.customerPhone)}`,
+    ...(event.note ? [`📝 ${e(event.note)}`] : []),
+    "",
+    "Pesanan tidak dilunasi otomatis. Cek mutasi dan refund bila perlu.",
+    link(orderUrl(dashboardUrl, event.order.invoiceNumber), "Buka di dashboard →"),
   ].join("\n");
 }
 

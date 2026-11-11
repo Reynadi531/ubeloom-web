@@ -34,6 +34,11 @@ export const QRIS_AUTO_PAYMENT_METHOD = "QRIS otomatis";
 /** Static QR plus an uploaded proof that an admin reviews. */
 export const QRIS_MANUAL_PAYMENT_METHOD = "QRIS manual";
 
+/** Order event written when the QRIS gateway settles an order (no reviewer involved). */
+export const AUTO_PAYMENT_EVENT = "payment_auto_approved";
+/** Order event written when gateway money arrives but cannot settle its order. */
+export const UNMATCHED_PAYMENT_EVENT = "payment_unmatched";
+
 export const methodLabels: Record<FulfillmentMethod, string> = {
   pickup: "Pickup",
   delivery: "Delivery",

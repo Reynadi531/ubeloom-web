@@ -4,7 +4,11 @@
  * Its webhook and the invoice page's polling both end up in `applyGatewayTransaction`.
  */
 import { order, orderEvent, paymentAttempt, qrisPayment } from "@web-kwu/db/schema/shop";
-import { QRIS_AUTO_PAYMENT_METHOD } from "@web-kwu/shop/rules";
+import {
+  AUTO_PAYMENT_EVENT,
+  QRIS_AUTO_PAYMENT_METHOD,
+  UNMATCHED_PAYMENT_EVENT,
+} from "@web-kwu/shop/rules";
 import { and, count, eq } from "drizzle-orm";
 import QRCode from "qrcode";
 
@@ -226,7 +230,7 @@ export async function applyGatewayTransaction(remote: GatewayTransaction) {
     if (problem) {
       await tx.insert(orderEvent).values({
         orderId: payment.orderId,
-        type: "payment_unmatched",
+        type: UNMATCHED_PAYMENT_EVENT,
         note: `Dana diterima, ${problem} · perlu ditinjau/refund · ${received}`,
       });
       return "unmatched" as const;
@@ -250,7 +254,7 @@ export async function applyGatewayTransaction(remote: GatewayTransaction) {
       .where(eq(order.id, payment.orderId));
     await tx.insert(orderEvent).values({
       orderId: payment.orderId,
-      type: "payment_approved",
+      type: AUTO_PAYMENT_EVENT,
       fromStatus: target.paymentStatus,
       toStatus: "paid",
       note: `Terverifikasi otomatis · ${received}`,

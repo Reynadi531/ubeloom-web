@@ -112,7 +112,7 @@ function SettingsComponent() {
         <section className={cardClassName}>
           <h2 className="text-sm font-bold text-ink">Pembayaran</h2>
           <label className="flex flex-col gap-1.5">
-            <span className={fieldLabelClassName}>Nama merchant QRIS</span>
+            <span className={fieldLabelClassName}>Nama merchant QRIS manual</span>
             <input
               value={qrisMerchantName}
               maxLength={80}
@@ -352,7 +352,7 @@ function QrisImageField({ imageKey }: { imageKey: string | null }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className={fieldLabelClassName}>Gambar QRIS</span>
+      <span className={fieldLabelClassName}>Gambar QRIS manual</span>
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex size-[160px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ube-line bg-surface">
           {imageKey ? (

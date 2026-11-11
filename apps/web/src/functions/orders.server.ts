@@ -88,6 +88,8 @@ function toOrderView(row: LoadedOrder, orderBatch: BatchRow) {
   return {
     id: row.id,
     invoiceNumber: row.invoiceNumber,
+    /** Secret of the customer's private invoice page (`/invoice/$token`); admins only. */
+    accessToken: row.accessToken,
     customerName: row.customerName,
     customerPhone: row.customerPhone,
     customerEmail: row.customerEmail,

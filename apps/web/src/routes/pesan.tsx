@@ -42,7 +42,7 @@ export const Route = createFileRoute("/pesan")({
 const afterSubmitSteps = [
   "Terima invoice dan tautan status pribadi.",
   "Bayar sesuai nominal melalui QRIS.",
-  "Unggah bukti; tim kami memverifikasi pembayaran.",
+  "QRIS otomatis terverifikasi sendiri; QRIS manual perlu unggah bukti.",
 ];
 
 const inputClassName =

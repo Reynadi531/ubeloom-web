@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { insertCheckoutOrder, insertProof, loadCheckout, loadInvoice } from "./checkout.server";
 import { phoneSchema } from "./orders";
+import { refreshQrisPayment, startQrisPayment } from "./qris.server";
 import { voucherCodesSchema } from "./vouchers";
 
 /* -------------------------------------------------------------------------- */
@@ -132,3 +133,13 @@ export const submitProof = createServerFn({ method: "POST" })
     });
   })
   .handler(({ data }) => insertProof(data));
+
+/** Generates the automatic QRIS (dynamic QR) for an unpaid invoice. */
+export const createQrisPayment = createServerFn({ method: "POST" })
+  .validator(z.object({ token: invoiceTokenSchema }))
+  .handler(({ data }) => startQrisPayment(data.token));
+
+/** Latest status of the invoice's automatic QRIS; polled while the QR is pending. */
+export const checkQrisPayment = createServerFn({ method: "POST" })
+  .validator(z.object({ token: invoiceTokenSchema }))
+  .handler(({ data }) => refreshQrisPayment(data.token));

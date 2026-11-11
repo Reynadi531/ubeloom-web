@@ -1,6 +1,6 @@
 import { Link, createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { Info, QrCode, Upload, X } from "lucide-react";
-import { type DragEvent, type FormEvent, useId, useRef, useState } from "react";
+import { type DragEvent, type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { serverErrorMessage } from "@/components/admin/orders/form-errors";
@@ -16,6 +16,8 @@ import PrivateNav from "@/components/storefront/private-nav";
 import {
   type InvoiceData,
   MAX_PROOF_BYTES,
+  checkQrisPayment,
+  createQrisPayment,
   getInvoice,
   invoiceTokenSchema,
   submitProof,
@@ -83,11 +85,19 @@ function paymentState(invoice: InvoiceData): PaymentState {
   return {
     badge: "MENUNGGU PEMBAYARAN",
     tone: "gold",
-    explanation:
-      "Belum dibayar · unggah bukti setelah transfer. Pesanan diproses setelah diverifikasi.",
+    explanation: invoice.autoQris.available
+      ? "Belum dibayar · QRIS otomatis terverifikasi sendiri; QRIS manual perlu unggah bukti."
+      : "Belum dibayar · unggah bukti setelah transfer. Pesanan diproses setelah diverifikasi.",
     printed: "MENUNGGU PEMBAYARAN / BELUM LUNAS",
   };
 }
+
+type PaymentMode = "auto" | "manual";
+
+const paymentModeLabels: Record<PaymentMode, string> = {
+  auto: "QRIS otomatis",
+  manual: "QRIS manual",
+};
 
 const proofBadges = {
   pending: "DALAM PENINJAUAN",
@@ -100,6 +110,15 @@ function InvoiceComponent() {
   const state = paymentState(invoice);
   const isDelivery = invoice.method === "delivery";
   const total = formatRupiah(invoice.total);
+  // A customer who already sent a proof is in the manual flow; keep them there.
+  const [mode, setMode] = useState<PaymentMode>(invoice.latestProof ? "manual" : "auto");
+  const showAuto = invoice.autoQris.available && mode === "auto";
+  // Nothing is left to pay: drop the QR, the proof form and the payment guide.
+  const paid = invoice.paymentStatus === "paid";
+  // The unique code the gateway adds on top of the total: already paid, or on the live QR.
+  const autoPayment = invoice.autoQris.payment;
+  const uniqueCharge =
+    invoice.autoQrisPaid ?? (showAuto && autoPayment?.active ? autoPayment : null);
 
   return (
     <div className="flex min-h-svh flex-col bg-white font-body text-ink">
@@ -205,93 +224,125 @@ function InvoiceComponent() {
                 {invoice.vouchers.map(({ code, discount }) => (
                   <InvoiceAmountRow key={code} label={`Voucher ${code}`} amount={-discount} />
                 ))}
+                {uniqueCharge && (
+                  <InvoiceAmountRow
+                    label="Kode unik QRIS otomatis"
+                    amount={uniqueCharge.uniqueCode}
+                  />
+                )}
               </div>
               <hr className="border-ube-line" />
-              <TotalRow label="Total yang harus dibayar" amount={invoice.total} />
+              <TotalRow
+                label={paid && uniqueCharge ? "Total dibayar" : "Total yang harus dibayar"}
+                amount={uniqueCharge?.totalAmount ?? invoice.total}
+              />
               <p className="text-[10px] text-plum">
                 {isDelivery
-                  ? "Biaya pengiriman sudah termasuk dalam total. Jangan transfer nominal berbeda."
-                  : "Total tanpa ongkir. Jangan transfer nominal berbeda."}
+                  ? "Biaya pengiriman sudah termasuk dalam total."
+                  : "Total tanpa ongkir."}{" "}
+                {uniqueCharge
+                  ? paid
+                    ? "Kode unik QRIS otomatis menandai pembayaran ini sebagai milik invoice kamu."
+                    : "Total sudah termasuk kode unik QRIS otomatis; bayar tepat nominal ini."
+                  : showAuto
+                    ? "QRIS otomatis menambahkan kode unik kecil ke nominal ini."
+                    : "Jangan transfer nominal berbeda."}
               </p>
               <p className="font-data text-[10px] font-bold whitespace-pre-wrap text-deep-ube">
                 STATUS PEMBAYARAN · {state.printed}
               </p>
             </article>
 
-            <ProofUpload invoice={invoice} />
+            {!showAuto && !paid && <ProofUpload invoice={invoice} />}
           </div>
 
-          <div className="flex flex-1 flex-col gap-[18px] print:hidden">
-            <section className="flex flex-col gap-3 rounded-[16px] border border-ube-line bg-white p-6">
+          {paid ? (
+            <section className="flex flex-1 flex-col gap-3 rounded-[16px] border border-ube-line bg-white p-6 print:hidden">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="font-display text-xl font-bold">Bayar dengan QRIS</h2>
-                <Badge tone="ube">{invoice.qrisImageUrl ? "QR RESMI" : "QR BELUM TERSEDIA"}</Badge>
+                <h2 className="font-display text-xl font-bold">Pembayaran diterima</h2>
+                <Badge tone="ube">LUNAS</Badge>
               </div>
-              <p className="font-data text-[10px] font-bold text-plum">
-                NAMA MERCHANT YANG HARUS DICOCOKKAN
-              </p>
-              <p className="text-sm font-bold">
-                {invoice.merchantName
-                  ? `${invoice.merchantName} · cocokkan di aplikasi`
-                  : "Diumumkan bersama QR resmi"}
-              </p>
-              {invoice.qrisImageUrl ? (
-                <div className="flex flex-col items-center gap-2 rounded-[10px] border border-ube-line bg-white p-3">
-                  <QrisZoom
-                    src={invoice.qrisImageUrl}
-                    alt={`QRIS ${invoice.merchantName || "ubeloom"}`}
-                    total={total}
-                  />
-                  <a
-                    href={invoice.qrisImageUrl}
-                    download={`qris-${invoice.invoiceNumber}`}
-                    className="text-xs font-bold text-deep-ube hover:text-ube-pop"
-                  >
-                    Simpan gambar QR
-                  </a>
-                </div>
-              ) : (
-                <div className="flex h-[216px] flex-col items-center justify-center gap-2 rounded-[10px] border border-ube-line bg-vanilla text-center">
-                  <QrCode aria-hidden className="size-[54px] text-deep-ube" />
-                  <p className="font-data text-xs font-bold text-deep-ube">QRIS BELUM TERSEDIA</p>
-                  <p className="px-4 text-[10px] text-plum">
-                    Jangan bayar sampai QR resmi tampil di invoice ini.
+              <div className="flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
+                <p className="text-xs font-bold">
+                  {invoice.autoQrisPaid ? "Total dibayar" : "Total invoice"}
+                </p>
+                <p className="font-display text-2xl font-bold text-deep-ube">
+                  {formatRupiah(invoice.autoQrisPaid?.totalAmount ?? invoice.total)}
+                </p>
+              </div>
+              {invoice.autoQrisPaid && (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-plum">Kode unik</p>
+                  <p className="text-right text-xs font-bold">
+                    {formatRupiah(invoice.autoQrisPaid.uniqueCode)} · total invoice {total}
                   </p>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
-                <p className="text-xs font-bold">Masukkan nominal tepat</p>
-                <p className="font-display text-2xl font-bold text-deep-ube">{total}</p>
-              </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold text-plum">Batas pembayaran</p>
-                <p className="text-right text-xs font-bold">{invoice.paymentDeadline}</p>
+                <p className="text-xs font-semibold text-plum">Metode</p>
+                <p className="text-right text-xs font-bold">{invoice.paymentMethod}</p>
               </div>
+              {invoice.paidAt && (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-plum">Terverifikasi</p>
+                  <p className="text-right text-xs font-bold">{invoice.paidAt}</p>
+                </div>
+              )}
               <p className="text-[10px] text-plum">
-                Bayar sebelum batas waktu. Jika QR belum tampil, hubungi bantuan.
+                Tidak ada yang perlu dibayar atau diunggah lagi. Pesanan masuk antrean produksi.
               </p>
-              <Link
-                to="/cara-pesan"
-                className="flex w-full justify-center rounded-full border-[1.5px] border-deep-ube bg-surface px-[22px] py-[13px] text-[15px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
-              >
-                Hubungi bantuan soal QRIS
-              </Link>
             </section>
+          ) : (
+            <div className="flex flex-1 flex-col gap-[18px] print:hidden">
+              {invoice.autoQris.available && (
+                <div
+                  role="group"
+                  aria-label="Metode pembayaran"
+                  className="grid grid-cols-2 gap-1 rounded-full border border-ube-line bg-surface p-1"
+                >
+                  {(["auto", "manual"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={mode === option}
+                      onClick={() => setMode(option)}
+                      className={`rounded-full px-4 py-2.5 text-[13px] font-bold transition-colors ${mode === option ? "bg-deep-ube text-vanilla" : "text-deep-ube hover:bg-vanilla"}`}
+                    >
+                      {paymentModeLabels[option]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showAuto ? (
+                <AutoQrisSection invoice={invoice} />
+              ) : (
+                <ManualQrisSection invoice={invoice} />
+              )}
 
-            <section className="flex flex-col gap-3.5 rounded-[16px] bg-surface p-6">
-              <h2 className="font-display text-[19px] font-bold">Cara membayar</h2>
-              <NumberedSteps
-                className="gap-3.5"
-                steps={[
-                  invoice.qrisImageUrl
-                    ? "Pindai QR di atas dengan aplikasi pembayaran."
-                    : "Saat QRIS resmi tampil, pindai dengan aplikasi pembayaran.",
-                  "Jika memakai satu ponsel, simpan gambar QR lalu impor bila didukung.",
-                  `Masukkan tepat ${total}; pastikan merchant ubeloom sebelum membayar.`,
-                ]}
-              />
-            </section>
-          </div>
+              <section className="flex flex-col gap-3.5 rounded-[16px] bg-surface p-6">
+                <h2 className="font-display text-[19px] font-bold">Cara membayar</h2>
+                <NumberedSteps
+                  className="gap-3.5"
+                  steps={
+                    showAuto
+                      ? [
+                          "Buat QR, lalu pindai dengan aplikasi pembayaran sebelum waktunya habis.",
+                          "Bayar tepat nominal pada QR (total invoice + kode unik); jangan diubah.",
+                          "Tunggu di halaman ini: status berubah lunas sendiri, tanpa unggah bukti.",
+                        ]
+                      : [
+                          invoice.qrisImageUrl
+                            ? "Pindai QR di atas dengan aplikasi pembayaran."
+                            : "Saat QRIS resmi tampil, pindai dengan aplikasi pembayaran.",
+                          "Jika memakai satu ponsel, simpan gambar QR lalu impor bila didukung.",
+                          `Masukkan tepat ${total}; pastikan merchant ubeloom sebelum membayar.`,
+                          "Unggah bukti pembayaran; tim kami memverifikasinya.",
+                        ]
+                  }
+                />
+              </section>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col justify-between gap-2.5 sm:flex-row sm:items-center print:hidden">
@@ -316,6 +367,237 @@ function InvoiceAmountRow({ label, amount }: { label: string; amount: number }) 
       <p className="font-semibold">{label}</p>
       <p className="font-bold">{amount < 0 ? `−${formatRupiah(-amount)}` : formatRupiah(amount)}</p>
     </div>
+  );
+}
+
+/** Static QR of the shop: the customer types the amount and uploads a proof for review. */
+function ManualQrisSection({ invoice }: { invoice: InvoiceData }) {
+  const total = formatRupiah(invoice.total);
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[16px] border border-ube-line bg-white p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-bold">Bayar dengan QRIS manual</h2>
+        <Badge tone="ube">{invoice.qrisImageUrl ? "QR RESMI" : "QR BELUM TERSEDIA"}</Badge>
+      </div>
+      <p className="font-data text-[10px] font-bold text-plum">
+        NAMA MERCHANT YANG HARUS DICOCOKKAN
+      </p>
+      <p className="text-sm font-bold">
+        {invoice.merchantName
+          ? `${invoice.merchantName} · cocokkan di aplikasi`
+          : "Diumumkan bersama QR resmi"}
+      </p>
+      {invoice.qrisImageUrl ? (
+        <div className="flex flex-col items-center gap-2 rounded-[10px] border border-ube-line bg-white p-3">
+          <QrisZoom
+            src={invoice.qrisImageUrl}
+            alt={`QRIS ${invoice.merchantName || "ubeloom"}`}
+            total={total}
+          />
+          <a
+            href={invoice.qrisImageUrl}
+            download={`qris-${invoice.invoiceNumber}`}
+            className="text-xs font-bold text-deep-ube hover:text-ube-pop"
+          >
+            Simpan gambar QR
+          </a>
+        </div>
+      ) : (
+        <div className="flex h-[216px] flex-col items-center justify-center gap-2 rounded-[10px] border border-ube-line bg-vanilla text-center">
+          <QrCode aria-hidden className="size-[54px] text-deep-ube" />
+          <p className="font-data text-xs font-bold text-deep-ube">QRIS BELUM TERSEDIA</p>
+          <p className="px-4 text-[10px] text-plum">
+            Jangan bayar sampai QR resmi tampil di invoice ini.
+          </p>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
+        <p className="text-xs font-bold">Masukkan nominal tepat</p>
+        <p className="font-display text-2xl font-bold text-deep-ube">{total}</p>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold text-plum">Batas pembayaran</p>
+        <p className="text-right text-xs font-bold">{invoice.paymentDeadline}</p>
+      </div>
+      <p className="text-[10px] text-plum">
+        Bayar sebelum batas waktu. Jika QR belum tampil, hubungi bantuan.
+      </p>
+      <Link
+        to="/cara-pesan"
+        className="flex w-full justify-center rounded-full border-[1.5px] border-deep-ube bg-surface px-[22px] py-[13px] text-[15px] font-bold text-deep-ube transition-colors hover:bg-vanilla"
+      >
+        Hubungi bantuan soal QRIS
+      </Link>
+    </section>
+  );
+}
+
+const QRIS_POLL_INTERVAL_MS = 4000;
+/** The gateway settles or expires a payment a few minutes after its deadline. */
+const QRIS_POLL_GRACE_MS = 10 * 60 * 1000;
+
+/** "04:59" */
+function formatCountdown(milliseconds: number) {
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Dynamic QR generated for this invoice. The amount carries a unique code, so the
+ * gateway recognises the transfer and the invoice turns paid without a proof.
+ */
+function AutoQrisSection({ invoice }: { invoice: InvoiceData }) {
+  const router = useRouter();
+  const { token } = Route.useParams();
+  const { payment } = invoice.autoQris;
+  const pending = payment?.status === "pending";
+  const expiresAt = payment ? Date.parse(payment.expiresAt) : 0;
+  // Null until mounted, so the server's clock never ends up in the hydrated markup.
+  const [now, setNow] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (!pending) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [pending]);
+
+  useEffect(() => {
+    if (!pending) return;
+    let busy = false;
+    let stopped = false;
+    const timer = window.setInterval(async () => {
+      if (busy || document.hidden) return;
+      if (Date.now() > expiresAt + QRIS_POLL_GRACE_MS) return window.clearInterval(timer);
+      busy = true;
+      try {
+        const result = await checkQrisPayment({ data: { token } });
+        if (!stopped && (result.paymentStatus !== "unpaid" || result.qrisStatus !== "pending")) {
+          await router.invalidate();
+        }
+      } catch {
+        // A failed check is retried on the next tick.
+      } finally {
+        busy = false;
+      }
+    }, QRIS_POLL_INTERVAL_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [pending, expiresAt, token, router]);
+
+  const payable = pending && (now === null || now < expiresAt);
+  const timedOut = pending && now !== null && now >= expiresAt;
+
+  // Reload once the QR runs out so the invoice breakdown drops its unique code.
+  useEffect(() => {
+    if (timedOut) void router.invalidate();
+  }, [timedOut, router]);
+
+  const create = async () => {
+    setError(undefined);
+    setCreating(true);
+    try {
+      await createQrisPayment({ data: { token } });
+      await router.invalidate();
+    } catch (caught) {
+      const message = serverErrorMessage(caught);
+      setError(message);
+      toast.error(message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[16px] border border-ube-line bg-white p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-bold">Bayar dengan QRIS otomatis</h2>
+        <Badge tone="ube">{payable ? "QR AKTIF" : "TANPA UNGGAH BUKTI"}</Badge>
+      </div>
+      <p className="text-xs text-plum">
+        QR khusus invoice ini. Pembayaran terverifikasi sendiri dalam beberapa saat, tanpa unggah
+        bukti.
+      </p>
+      {payment && payable && payment.qrDataUrl ? (
+        <>
+          <div className="flex flex-col items-center gap-2 rounded-[10px] border border-ube-line bg-white p-3">
+            <QrisZoom
+              src={payment.qrDataUrl}
+              alt={`QRIS otomatis invoice ${invoice.invoiceNumber}`}
+              total={formatRupiah(payment.totalAmount)}
+            />
+            <a
+              href={payment.qrDataUrl}
+              download={`qris-${invoice.invoiceNumber}.png`}
+              className="text-xs font-bold text-deep-ube hover:text-ube-pop"
+            >
+              Simpan gambar QR
+            </a>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
+            <p className="text-xs font-bold">Bayar tepat</p>
+            <p className="font-display text-2xl font-bold text-deep-ube">
+              {formatRupiah(payment.totalAmount)}
+            </p>
+          </div>
+          <p className="text-[10px] text-plum">
+            Total invoice {formatRupiah(invoice.total)} + kode unik{" "}
+            {formatRupiah(payment.uniqueCode)}. Nominal terisi saat QR dipindai; jangan diubah.
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-plum">QR berlaku</p>
+            <p role="timer" className="font-data text-sm font-bold text-deep-ube">
+              {now === null ? "--:--" : formatCountdown(expiresAt - now)}
+            </p>
+          </div>
+          <p role="status" className="text-[11px] font-semibold text-deep-ube">
+            Menunggu pembayaran… halaman ini diperbarui sendiri.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="flex h-[216px] flex-col items-center justify-center gap-2 rounded-[10px] border border-ube-line bg-vanilla text-center">
+            <QrCode aria-hidden className="size-[54px] text-deep-ube" />
+            <p className="font-data text-xs font-bold text-deep-ube">
+              {payment ? "QR KEDALUWARSA" : "QR BELUM DIBUAT"}
+            </p>
+            <p className="px-4 text-[10px] text-plum">
+              {payment
+                ? "QR sebelumnya sudah lewat batas waktu dan tidak boleh dibayar lagi."
+                : "QR hanya berlaku beberapa menit; buat saat kamu siap membayar."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={create}
+            disabled={creating}
+            className="flex w-full justify-center rounded-full bg-deep-ube px-[22px] py-[13px] text-[15px] font-bold text-vanilla transition-colors hover:bg-ube-pop disabled:opacity-60"
+          >
+            {creating ? "Membuat QR…" : payment ? "Buat QR baru" : "Buat QR pembayaran"}
+          </button>
+          {payment && (
+            <p className="text-[10px] text-plum">
+              Sudah membayar tetapi status belum berubah? Tunggu beberapa menit sebelum membuat QR
+              baru, lalu hubungi bantuan bila tetap belum lunas.
+            </p>
+          )}
+        </>
+      )}
+      {error && (
+        <p role="alert" className="text-xs font-semibold text-ube-pop">
+          {error}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold text-plum">Batas pembayaran</p>
+        <p className="text-right text-xs font-bold">{invoice.paymentDeadline}</p>
+      </div>
+    </section>
   );
 }
 

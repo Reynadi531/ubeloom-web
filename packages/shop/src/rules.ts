@@ -27,6 +27,18 @@ export const fulfillmentStatusValues = [
   "cancelled",
 ] as const satisfies readonly FulfillmentStatus[];
 
+/** Checkout orders start as plain QRIS; the label narrows once the customer pays one way. */
+export const QRIS_PAYMENT_METHOD = "QRIS";
+/** Dynamic QR from the gateway, settled automatically. */
+export const QRIS_AUTO_PAYMENT_METHOD = "QRIS otomatis";
+/** Static QR plus an uploaded proof that an admin reviews. */
+export const QRIS_MANUAL_PAYMENT_METHOD = "QRIS manual";
+
+/** Order event written when the QRIS gateway settles an order (no reviewer involved). */
+export const AUTO_PAYMENT_EVENT = "payment_auto_approved";
+/** Order event written when gateway money arrives but cannot settle its order. */
+export const UNMATCHED_PAYMENT_EVENT = "payment_unmatched";
+
 export const methodLabels: Record<FulfillmentMethod, string> = {
   pickup: "Pickup",
   delivery: "Delivery",

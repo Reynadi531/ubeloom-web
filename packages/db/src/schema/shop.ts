@@ -56,6 +56,8 @@ export const paymentAttemptStatus = pgEnum("payment_attempt_status", [
   "approved",
   "rejected",
 ]);
+/** Mirrors the gateway's transaction status; `paid` and `expired` are final. */
+export const qrisPaymentStatus = pgEnum("qris_payment_status", ["pending", "paid", "expired"]);
 export const drawStatus = pgEnum("draw_status", ["draft", "frozen", "drawn"]);
 /** Percentage off, or a rupiah cut. */
 export const voucherDiscountType = pgEnum("voucher_discount_type", ["percentage", "fixed"]);
@@ -260,7 +262,7 @@ export const order = pgTable(
     recipientPhone: text("recipient_phone"),
     /** Courier option chosen for delivery, snapshotted from Pengaturan. */
     courier: text("courier"),
-    /** Free-form label, e.g. "Transfer bank · BCA", "QRIS", "Tunai". */
+    /** Free-form label, e.g. "Transfer bank · BCA", "QRIS otomatis", "QRIS manual", "Tunai". */
     paymentMethod: text("payment_method").notNull(),
     paymentStatus: paymentStatus("payment_status").notNull().default("unpaid"),
     fulfillmentStatus: fulfillmentStatus("fulfillment_status").notNull().default("pending"),
@@ -378,6 +380,37 @@ export const paymentAttempt = pgTable(
   ],
 );
 
+/**
+ * Automatic QRIS payment requested from the QRIS gateway for an order. The gateway
+ * adds a unique code to the order total and settles the payment by itself when a
+ * transfer of exactly `totalAmount` arrives; no proof or admin review is involved.
+ */
+export const qrisPayment = pgTable(
+  "qris_payment",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    /** Our ID at the gateway: `<invoiceNumber>-<n>`, one per generated QR. */
+    transactionId: text("transaction_id").notNull().unique(),
+    /** Order total when the QR was generated. */
+    amount: rupiah("amount").notNull(),
+    uniqueCode: integer("unique_code").notNull(),
+    /** amount + uniqueCode: what the customer must pay exactly. */
+    totalAmount: rupiah("total_amount").notNull(),
+    /** Dynamic EMVCo QRIS payload encoding totalAmount. */
+    qris: text("qris").notNull(),
+    status: qrisPaymentStatus("status").notNull().default("pending"),
+    /** Provider-side transaction ID of the matched transfer; set once paid. */
+    providerTransactionId: text("provider_transaction_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("qris_payment_order_idx").on(table.orderId)],
+);
+
 /** Audit trail of status changes and handovers on an order. */
 export const orderEvent = pgTable(
   "order_event",
@@ -386,7 +419,10 @@ export const orderEvent = pgTable(
     orderId: text("order_id")
       .notNull()
       .references(() => order.id, { onDelete: "cascade" }),
-    /** e.g. "created", "payment_approved", "payment_rejected", "fulfillment_changed", "handover". */
+    /**
+     * e.g. "created", "payment_approved", "payment_auto_approved", "payment_unmatched",
+     * "payment_rejected", "fulfillment_changed", "handover".
+     */
     type: text("type").notNull(),
     fromStatus: text("from_status"),
     toStatus: text("to_status"),
@@ -470,12 +506,12 @@ export const shopSetting = pgTable("shop_setting", {
   id: text("id").primaryKey().default("default"),
   /** Brand printed on invoices. */
   brandName: text("brand_name").notNull().default("ubeloom"),
-  /** Merchant name customers must match in their QRIS app; empty until configured. */
+  /** Merchant name customers must match in their QRIS app (manual QRIS); empty until configured. */
   qrisMerchantName: text("qris_merchant_name").notNull().default(""),
-  /** Object key of the QRIS code image (`qris/<uuid>.<ext>`); null until uploaded. */
+  /** Object key of the static QRIS code image for manual QRIS (`qris/<uuid>.<ext>`); null until uploaded. */
   qrisImageKey: text("qris_image_key"),
   /** Non-cash payment methods offered on manual orders, e.g. "Transfer bank · BCA". */
-  paymentMethods: jsonb("payment_methods").$type<string[]>().notNull().default(["QRIS"]),
+  paymentMethods: jsonb("payment_methods").$type<string[]>().notNull().default(["QRIS manual"]),
   /** Delivery areas and their ongkir, offered in every batch's delivery windows. */
   deliveryRates: jsonb("delivery_rates").$type<DeliveryRate[]>().notNull().default([]),
   /** Courier options for delivery; empty means no courier choice and no extra fee. */
@@ -499,6 +535,7 @@ export const shopRelations = defineRelationsPart(
     orderVoucher,
     invoice,
     paymentAttempt,
+    qrisPayment,
     orderEvent,
     draw,
     drawPrize,
@@ -539,6 +576,7 @@ export const shopRelations = defineRelationsPart(
       items: r.many.orderItem({ from: r.order.id, to: r.orderItem.orderId }),
       invoices: r.many.invoice({ from: r.order.id, to: r.invoice.orderId }),
       paymentAttempts: r.many.paymentAttempt({ from: r.order.id, to: r.paymentAttempt.orderId }),
+      qrisPayments: r.many.qrisPayment({ from: r.order.id, to: r.qrisPayment.orderId }),
       events: r.many.orderEvent({ from: r.order.id, to: r.orderEvent.orderId }),
       createdBy: r.one.user({ from: r.order.createdById, to: r.user.id }),
       vouchers: r.many.orderVoucher({ from: r.order.id, to: r.orderVoucher.orderId }),
@@ -560,6 +598,9 @@ export const shopRelations = defineRelationsPart(
     paymentAttempt: {
       order: r.one.order({ from: r.paymentAttempt.orderId, to: r.order.id, optional: false }),
       reviewedBy: r.one.user({ from: r.paymentAttempt.reviewedById, to: r.user.id }),
+    },
+    qrisPayment: {
+      order: r.one.order({ from: r.qrisPayment.orderId, to: r.order.id, optional: false }),
     },
     orderEvent: {
       order: r.one.order({ from: r.orderEvent.orderId, to: r.order.id, optional: false }),

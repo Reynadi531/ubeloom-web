@@ -10,6 +10,11 @@ import {
   orderVoucher,
   paymentAttempt,
 } from "@web-kwu/db/schema/shop";
+import {
+  QRIS_AUTO_PAYMENT_METHOD,
+  QRIS_MANUAL_PAYMENT_METHOD,
+  QRIS_PAYMENT_METHOD,
+} from "@web-kwu/shop/rules";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
 
@@ -41,6 +46,7 @@ import {
   priceOrder,
   slotBookings,
 } from "./orders.server";
+import { autoQrisView } from "./qris.server";
 import { redeemVouchers } from "./vouchers.server";
 import type { PlaceOrderData, SubmitProofData } from "./checkout";
 
@@ -185,7 +191,7 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
             recipientName: isDelivery ? data.recipientName : null,
             recipientPhone: isDelivery ? data.recipientPhone : null,
             courier,
-            paymentMethod: "QRIS",
+            paymentMethod: QRIS_PAYMENT_METHOD,
             subtotal,
             shippingFee,
             discount,
@@ -208,7 +214,7 @@ export async function insertCheckoutOrder(data: PlaceOrderData) {
           type: "created",
           toStatus: "pending",
           note: [
-            "Pesanan dari checkout storefront · QRIS",
+            `Pesanan dari checkout storefront · ${QRIS_PAYMENT_METHOD}`,
             ...applied.map(({ code, discount }) => `voucher ${code} −${formatRupiah(discount)}`),
           ].join(" · "),
         });
@@ -238,6 +244,7 @@ export async function loadInvoice(token: string) {
         pickupSlot: true,
         deliveryZone: true,
         paymentAttempts: { orderBy: { attempt: "desc" }, limit: 1 },
+        qrisPayments: { orderBy: { createdAt: "desc" }, limit: 1 },
       },
     }),
     getShopSettings(),
@@ -256,6 +263,10 @@ export async function loadInvoice(token: string) {
     invoiceNumber: row.invoiceNumber,
     merchantName: settings.qrisMerchantName,
     qrisImageUrl: settings.qrisImageKey ? qrisImageUrl(settings.qrisImageKey) : null,
+    autoQris: await autoQrisView(
+      row.qrisPayments[0],
+      !cancelled && row.paymentStatus === "unpaid" && row.total > 0,
+    ),
     batchOpen: row.batch.status === "open",
     createdAt: formatFullDateTime(row.createdAt),
     customerName: row.customerName,
@@ -284,6 +295,9 @@ export async function loadInvoice(token: string) {
     paymentStatus: row.paymentStatus as PaymentStatus,
     cancelled,
     paymentDeadline: formatFullDateTime(paymentDeadline(row.createdAt, row.batch.paymentCutoffAt)),
+    /** How and when a paid invoice was settled, e.g. "QRIS otomatis". */
+    paymentMethod: row.paymentMethod,
+    paidAt: row.paidAt ? formatFullDateTime(row.paidAt) : null,
     latestProof: latest
       ? {
           status: latest.status,
@@ -310,7 +324,11 @@ export async function insertProof(data: SubmitProofData) {
   return db.transaction(async (tx) => {
     // Lock the order so concurrent submissions get distinct attempt numbers.
     const [locked] = await tx
-      .select({ paymentStatus: order.paymentStatus, fulfillmentStatus: order.fulfillmentStatus })
+      .select({
+        paymentStatus: order.paymentStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+        paymentMethod: order.paymentMethod,
+      })
       .from(order)
       .where(eq(order.id, target.id))
       .for("update");
@@ -345,9 +363,14 @@ export async function insertProof(data: SubmitProofData) {
         : `${target.invoiceNumber}#${next}`,
       proofKey: key,
     });
+    // A proof means the customer paid the static QR; admin-entered methods keep their label.
+    const viaQris = [QRIS_PAYMENT_METHOD, QRIS_AUTO_PAYMENT_METHOD].includes(locked.paymentMethod);
     await tx
       .update(order)
-      .set({ paymentStatus: "review" })
+      .set({
+        paymentStatus: "review",
+        ...(viaQris ? { paymentMethod: QRIS_MANUAL_PAYMENT_METHOD } : {}),
+      })
       .where(and(eq(order.id, target.id), ne(order.paymentStatus, "paid")));
     await tx.insert(orderEvent).values({
       orderId: target.id,

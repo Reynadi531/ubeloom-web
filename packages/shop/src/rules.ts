@@ -27,6 +27,13 @@ export const fulfillmentStatusValues = [
   "cancelled",
 ] as const satisfies readonly FulfillmentStatus[];
 
+/** Checkout orders start as plain QRIS; the label narrows once the customer pays one way. */
+export const QRIS_PAYMENT_METHOD = "QRIS";
+/** Dynamic QR from the gateway, settled automatically. */
+export const QRIS_AUTO_PAYMENT_METHOD = "QRIS otomatis";
+/** Static QR plus an uploaded proof that an admin reviews. */
+export const QRIS_MANUAL_PAYMENT_METHOD = "QRIS manual";
+
 export const methodLabels: Record<FulfillmentMethod, string> = {
   pickup: "Pickup",
   delivery: "Delivery",

@@ -1,7 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { insertCheckoutOrder, insertProof, loadCheckout, loadInvoice } from "./checkout.server";
+import {
+  insertCheckoutOrder,
+  insertProof,
+  loadCheckout,
+  loadInvoice,
+  startGatewayPayment,
+} from "./checkout.server";
 import { phoneSchema } from "./orders";
 import { voucherCodesSchema } from "./vouchers";
 
@@ -132,3 +138,8 @@ export const submitProof = createServerFn({ method: "POST" })
     });
   })
   .handler(({ data }) => insertProof(data));
+
+/** Opens (or reuses) an automatic QRIS payment and returns the gateway checkout URL. */
+export const startQrisPayment = createServerFn({ method: "POST" })
+  .validator(z.object({ token: invoiceTokenSchema }))
+  .handler(({ data }) => startGatewayPayment(data.token));

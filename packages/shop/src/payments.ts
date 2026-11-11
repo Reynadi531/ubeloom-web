@@ -1,6 +1,6 @@
 /** Payment review mutations used by "Verifikasi bayar" and the Telegram bot. */
 import type { Database } from "@web-kwu/db";
-import { order, orderEvent, paymentAttempt } from "@web-kwu/db/schema/shop";
+import { gatewayPayment, order, orderEvent, paymentAttempt } from "@web-kwu/db/schema/shop";
 import { and, eq, inArray, ne, notExists, or, sql } from "drizzle-orm";
 
 /** Placeholders like "-" or "..." carry no letter/digit and must never count as a reference. */
@@ -141,5 +141,114 @@ export function rejectPaymentAttempt(
     });
 
     return { id: data.attemptId };
+  });
+}
+
+export type GatewayOutcome = "completed" | "failed" | "expired";
+
+export type GatewayNotification = {
+  /** Our `order_id` echoed back by the gateway (gatewayPayment.reference). */
+  reference: string;
+  outcome: GatewayOutcome;
+  providerPaymentId?: string;
+  amount?: number;
+  fee?: number;
+  netAmount?: number;
+  paidAt?: Date;
+};
+
+/**
+ * Applies a verified gateway webhook. Idempotent: replays and out-of-order events never
+ * downgrade a completed payment. A completion marks the order paid unless it already
+ * is; a completion on a cancelled or already-paid order is recorded for a manual refund.
+ */
+export function settleGatewayPayment(db: Database, event: GatewayNotification) {
+  return db.transaction(async (tx) => {
+    const [payment] = await tx
+      .select()
+      .from(gatewayPayment)
+      .where(eq(gatewayPayment.reference, event.reference))
+      .for("update");
+    if (!payment) return { result: "unknown" as const };
+    if (payment.status === "completed") return { result: "duplicate" as const };
+
+    if (event.outcome !== "completed") {
+      if (payment.status === "pending") {
+        await tx
+          .update(gatewayPayment)
+          .set({ status: event.outcome, providerPaymentId: event.providerPaymentId })
+          .where(eq(gatewayPayment.id, payment.id));
+      }
+      return { result: event.outcome };
+    }
+
+    // With "charge fee to customer" the gateway may report more than we asked; never less.
+    if (event.amount !== undefined && event.amount < payment.amount) {
+      await tx.insert(orderEvent).values({
+        orderId: payment.orderId,
+        type: "payment_gateway_mismatch",
+        note: `QRIS otomatis · ref. ${payment.reference} · dilaporkan ${event.amount}, diminta ${payment.amount}`,
+      });
+      return { result: "mismatch" as const };
+    }
+
+    const paidAt = event.paidAt ?? new Date();
+    await tx
+      .update(gatewayPayment)
+      .set({
+        status: "completed",
+        providerPaymentId: event.providerPaymentId ?? payment.providerPaymentId,
+        fee: event.fee,
+        netAmount: event.netAmount,
+        paidAt,
+      })
+      .where(eq(gatewayPayment.id, payment.id));
+
+    const [current] = await tx
+      .select({
+        total: order.total,
+        paymentStatus: order.paymentStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+      })
+      .from(order)
+      .where(eq(order.id, payment.orderId))
+      .for("update");
+    if (!current) return { result: "unknown" as const };
+
+    const note = `QRIS otomatis · ref. ${payment.reference}${event.providerPaymentId ? ` · ${event.providerPaymentId}` : ""}`;
+    if (current.paymentStatus === "paid" || current.fulfillmentStatus === "cancelled") {
+      await tx.insert(orderEvent).values({
+        orderId: payment.orderId,
+        type: "payment_gateway_refund_needed",
+        fromStatus: current.paymentStatus,
+        toStatus: current.paymentStatus,
+        note: `${note} · dibayar saat pesanan ${current.paymentStatus === "paid" ? "sudah lunas" : "dibatalkan"}, perlu refund`,
+      });
+      return { result: "refund_needed" as const };
+    }
+    if (payment.amount !== current.total) {
+      // The order total changed after the QR was issued (admin edit); keep it for review.
+      await tx.insert(orderEvent).values({
+        orderId: payment.orderId,
+        type: "payment_gateway_mismatch",
+        fromStatus: current.paymentStatus,
+        toStatus: current.paymentStatus,
+        note: `${note} · dibayar ${payment.amount}, total invoice kini ${current.total}`,
+      });
+      return { result: "mismatch" as const };
+    }
+
+    await tx
+      .update(order)
+      .set({ paymentStatus: "paid", paidAt })
+      .where(eq(order.id, payment.orderId));
+    await tx.insert(orderEvent).values({
+      orderId: payment.orderId,
+      type: "payment_gateway_paid",
+      fromStatus: current.paymentStatus,
+      toStatus: "paid",
+      note,
+    });
+    return { result: "paid" as const };
   });
 }

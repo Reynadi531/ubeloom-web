@@ -8,6 +8,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   server: {
     port: 3001,
+    // Dev server only: accept any Host header so tunnels (lhr.life, ngrok) can reach webhooks.
+    allowedHosts: true,
   },
   resolve: {
     tsconfigPaths: true,

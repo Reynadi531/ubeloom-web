@@ -4,14 +4,16 @@
  * to its invoice, so every lookup here goes through it.
  */
 import {
+  gatewayPayment,
   order,
   orderEvent,
   orderItem,
   orderVoucher,
   paymentAttempt,
 } from "@web-kwu/db/schema/shop";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
+import { getRequestHeader } from "@tanstack/react-start/server";
 
 import { getPublicBatch } from "@/lib/batches.server";
 import { storeProof } from "@/lib/proof.server";
@@ -30,6 +32,8 @@ import {
   windowServesArea,
 } from "@/lib/orders";
 import { productCoverUrl, qrisImageUrl } from "@/lib/product-images";
+import { createSumopodPayment, isSumopodEnabled } from "@/lib/sumopod.server";
+import { ENV } from "@/env.server";
 import { db } from "@/services";
 
 import {
@@ -49,6 +53,12 @@ const PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Customer uploads per order; stops a leaked link from filling the bucket. */
 const MAX_PROOF_ATTEMPTS = 5;
+
+/** A pending gateway QR is reused (and the invoice keeps polling) for this long. */
+const GATEWAY_REUSE_MS = 30 * 60 * 1000;
+
+/** Gateway payments per order; stops a leaked link from spamming the gateway API. */
+const MAX_GATEWAY_PAYMENTS = 10;
 
 function paymentDeadline(createdAt: Date, cutoff: Date) {
   const due = new Date(createdAt.getTime() + PAYMENT_WINDOW_MS);
@@ -238,6 +248,7 @@ export async function loadInvoice(token: string) {
         pickupSlot: true,
         deliveryZone: true,
         paymentAttempts: { orderBy: { attempt: "desc" }, limit: 1 },
+        gatewayPayments: { orderBy: { createdAt: "desc" }, limit: 1 },
       },
     }),
     getShopSettings(),
@@ -245,6 +256,8 @@ export async function loadInvoice(token: string) {
   if (!row) throw notFound();
 
   const latest = row.paymentAttempts[0];
+  const latestGateway = row.gatewayPayments[0];
+  const gatewayEnabled = isSumopodEnabled();
   const window =
     row.method === "pickup"
       ? row.pickupSlot && formatSlot(row.pickupSlot.startsAt, row.pickupSlot.endsAt)
@@ -292,8 +305,124 @@ export async function loadInvoice(token: string) {
         }
       : null,
     canUpload:
-      !cancelled && row.paymentStatus === "unpaid" && (latest?.attempt ?? 0) < MAX_PROOF_ATTEMPTS,
+      !gatewayEnabled &&
+      !cancelled &&
+      row.paymentStatus === "unpaid" &&
+      (latest?.attempt ?? 0) < MAX_PROOF_ATTEMPTS,
+    /** Automatic QRIS via the gateway; null when it is not configured (manual proof flow). */
+    gateway: gatewayEnabled
+      ? {
+          canPay: !cancelled && row.paymentStatus === "unpaid" && row.total > 0,
+          /** A QR was opened recently and no outcome arrived yet: the page polls for it. */
+          awaiting:
+            latestGateway?.status === "pending" &&
+            Date.now() - latestGateway.createdAt.getTime() < GATEWAY_REUSE_MS,
+        }
+      : null,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               Gateway payment                              */
+/* -------------------------------------------------------------------------- */
+
+const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** Random suffix so concurrent clicks never send the gateway the same order_id twice. */
+function referenceSuffix() {
+  const bytes = crypto.getRandomValues(new Uint8Array(5));
+  return Array.from(bytes, (byte) => REFERENCE_ALPHABET[byte % REFERENCE_ALPHABET.length]).join("");
+}
+
+const isLocalHost = (hostname: string) =>
+  hostname === "localhost" ||
+  hostname.endsWith(".localhost") ||
+  /^(127\.|0\.0\.0\.0|\[::1\])/.test(hostname);
+
+/**
+ * Origin Sumopod sends the customer back to. Sumopod rejects localhost, so in
+ * development (BETTER_AUTH_URL on localhost) use the tunnel origin the browser is on.
+ * Production always uses the configured origin: a client-supplied Origin header would
+ * let anyone holding an invoice link plant a return URL on the reused QR.
+ */
+function returnOrigin() {
+  const configured = new URL(ENV.BETTER_AUTH_URL);
+  if (!isLocalHost(configured.hostname)) return configured.origin;
+  if (ENV.NODE_ENV === "production") return undefined;
+
+  const header = getRequestHeader("origin");
+  if (!header) return undefined;
+  try {
+    const url = new URL(header);
+    return /^https?:$/.test(url.protocol) && !isLocalHost(url.hostname) ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Returns the gateway checkout URL for an unpaid invoice, reusing a recent pending QR
+ * for the same amount instead of creating a new one on every click.
+ */
+export async function startGatewayPayment(token: string) {
+  if (!isSumopodEnabled()) throw new Error("Pembayaran QRIS otomatis belum diaktifkan.");
+
+  const target = await db.query.order.findFirst({
+    where: { accessToken: token },
+    columns: {
+      id: true,
+      invoiceNumber: true,
+      total: true,
+      paymentStatus: true,
+      fulfillmentStatus: true,
+    },
+    with: {
+      gatewayPayments: { where: { status: "pending" }, orderBy: { createdAt: "desc" }, limit: 1 },
+    },
+  });
+  if (!target) throw new Error("Invoice tidak ditemukan.");
+  if (target.fulfillmentStatus === "cancelled") throw new Error("Pesanan ini sudah dibatalkan.");
+  if (target.paymentStatus === "paid") throw new Error("Invoice ini sudah lunas.");
+  if (target.paymentStatus === "review") {
+    throw new Error("Bukti sebelumnya masih ditinjau. Tunggu hasil verifikasi.");
+  }
+  if (target.total <= 0) throw new Error("Invoice ini tidak memiliki tagihan.");
+
+  const pending = target.gatewayPayments[0];
+  if (
+    pending &&
+    pending.amount === target.total &&
+    Date.now() - pending.createdAt.getTime() < GATEWAY_REUSE_MS
+  ) {
+    return { url: pending.paymentUrl };
+  }
+
+  const [{ created }] = await db
+    .select({ created: count() })
+    .from(gatewayPayment)
+    .where(eq(gatewayPayment.orderId, target.id));
+  if (created >= MAX_GATEWAY_PAYMENTS) {
+    throw new Error("Batas pembuatan QRIS tercapai. Hubungi bantuan.");
+  }
+
+  const reference = `${target.invoiceNumber}-${referenceSuffix()}`;
+  const origin = returnOrigin();
+  const invoiceUrl = origin ? new URL(`/invoice/${token}`, origin).href : undefined;
+  const payment = await createSumopodPayment({
+    reference,
+    amount: target.total,
+    successUrl: invoiceUrl,
+    cancelUrl: invoiceUrl,
+  });
+
+  await db.insert(gatewayPayment).values({
+    orderId: target.id,
+    reference,
+    providerPaymentId: payment.providerPaymentId,
+    amount: target.total,
+    paymentUrl: payment.paymentUrl,
+  });
+  return { url: payment.paymentUrl };
 }
 
 /** Stores the proof in the private bucket and queues it for review in "Verifikasi bayar". */

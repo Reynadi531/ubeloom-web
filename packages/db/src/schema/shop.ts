@@ -56,6 +56,13 @@ export const paymentAttemptStatus = pgEnum("payment_attempt_status", [
   "approved",
   "rejected",
 ]);
+/** Lifecycle of a payment created at the QRIS gateway (Sumopod managed payment). */
+export const gatewayPaymentStatus = pgEnum("gateway_payment_status", [
+  "pending",
+  "completed",
+  "failed",
+  "expired",
+]);
 export const drawStatus = pgEnum("draw_status", ["draft", "frozen", "drawn"]);
 /** Percentage off, or a rupiah cut. */
 export const voucherDiscountType = pgEnum("voucher_discount_type", ["percentage", "fixed"]);
@@ -378,6 +385,41 @@ export const paymentAttempt = pgTable(
   ],
 );
 
+/**
+ * QRIS payment created at the gateway for an order. A new row is created whenever the
+ * previous one failed or expired, so one order may have several; only `completed`
+ * settles it (see settleGatewayPayment).
+ */
+export const gatewayPayment = pgTable(
+  "gateway_payment",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => order.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("sumopod"),
+    /** `order_id` sent to the gateway; unique per payment so a replacement QR never collides. */
+    reference: text("reference").notNull().unique(),
+    /** Gateway's own payment id, once known. */
+    providerPaymentId: text("provider_payment_id"),
+    /** Amount requested from the gateway (the order total at creation time). */
+    amount: rupiah("amount").notNull(),
+    /** Hosted checkout page that shows the QRIS code. */
+    paymentUrl: text("payment_url").notNull(),
+    status: gatewayPaymentStatus("status").notNull().default("pending"),
+    /** Gateway fee and net amount reported on completion. */
+    fee: rupiah("fee"),
+    netAmount: rupiah("net_amount"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("gateway_payment_order_idx").on(table.orderId),
+    index("gateway_payment_status_idx").on(table.status),
+  ],
+);
+
 /** Audit trail of status changes and handovers on an order. */
 export const orderEvent = pgTable(
   "order_event",
@@ -499,6 +541,7 @@ export const shopRelations = defineRelationsPart(
     orderVoucher,
     invoice,
     paymentAttempt,
+    gatewayPayment,
     orderEvent,
     draw,
     drawPrize,
@@ -539,6 +582,7 @@ export const shopRelations = defineRelationsPart(
       items: r.many.orderItem({ from: r.order.id, to: r.orderItem.orderId }),
       invoices: r.many.invoice({ from: r.order.id, to: r.invoice.orderId }),
       paymentAttempts: r.many.paymentAttempt({ from: r.order.id, to: r.paymentAttempt.orderId }),
+      gatewayPayments: r.many.gatewayPayment({ from: r.order.id, to: r.gatewayPayment.orderId }),
       events: r.many.orderEvent({ from: r.order.id, to: r.orderEvent.orderId }),
       createdBy: r.one.user({ from: r.order.createdById, to: r.user.id }),
       vouchers: r.many.orderVoucher({ from: r.order.id, to: r.orderVoucher.orderId }),
@@ -560,6 +604,9 @@ export const shopRelations = defineRelationsPart(
     paymentAttempt: {
       order: r.one.order({ from: r.paymentAttempt.orderId, to: r.order.id, optional: false }),
       reviewedBy: r.one.user({ from: r.paymentAttempt.reviewedById, to: r.user.id }),
+    },
+    gatewayPayment: {
+      order: r.one.order({ from: r.gatewayPayment.orderId, to: r.order.id, optional: false }),
     },
     orderEvent: {
       order: r.one.order({ from: r.orderEvent.orderId, to: r.order.id, optional: false }),

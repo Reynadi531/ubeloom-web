@@ -34,6 +34,8 @@ export async function autoQrisView(
   available: boolean;
   payment: {
     status: QrisPaymentRow["status"];
+    /** Pending and not past its deadline when the page loaded: the QR may be paid. */
+    active: boolean;
     uniqueCode: number;
     totalAmount: number;
     /** ISO timestamp; the QR must not be paid after it. */
@@ -48,6 +50,7 @@ export async function autoQrisView(
     available,
     payment: {
       status: latest.status,
+      active: latest.status === "pending" && latest.expiresAt.getTime() > Date.now(),
       uniqueCode: latest.uniqueCode,
       totalAmount: latest.totalAmount,
       expiresAt: latest.expiresAt.toISOString(),

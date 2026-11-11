@@ -115,6 +115,10 @@ function InvoiceComponent() {
   const showAuto = invoice.autoQris.available && mode === "auto";
   // Nothing is left to pay: drop the QR, the proof form and the payment guide.
   const paid = invoice.paymentStatus === "paid";
+  // The unique code the gateway adds on top of the total: already paid, or on the live QR.
+  const autoPayment = invoice.autoQris.payment;
+  const uniqueCharge =
+    invoice.autoQrisPaid ?? (showAuto && autoPayment?.active ? autoPayment : null);
 
   return (
     <div className="flex min-h-svh flex-col bg-white font-body text-ink">
@@ -220,14 +224,29 @@ function InvoiceComponent() {
                 {invoice.vouchers.map(({ code, discount }) => (
                   <InvoiceAmountRow key={code} label={`Voucher ${code}`} amount={-discount} />
                 ))}
+                {uniqueCharge && (
+                  <InvoiceAmountRow
+                    label="Kode unik QRIS otomatis"
+                    amount={uniqueCharge.uniqueCode}
+                  />
+                )}
               </div>
               <hr className="border-ube-line" />
-              <TotalRow label="Total yang harus dibayar" amount={invoice.total} />
+              <TotalRow
+                label={paid && uniqueCharge ? "Total dibayar" : "Total yang harus dibayar"}
+                amount={uniqueCharge?.totalAmount ?? invoice.total}
+              />
               <p className="text-[10px] text-plum">
                 {isDelivery
-                  ? "Biaya pengiriman sudah termasuk dalam total. Jangan transfer nominal berbeda."
-                  : "Total tanpa ongkir. Jangan transfer nominal berbeda."}
-                {showAuto && " QRIS otomatis menambahkan kode unik kecil ke nominal ini."}
+                  ? "Biaya pengiriman sudah termasuk dalam total."
+                  : "Total tanpa ongkir."}{" "}
+                {uniqueCharge
+                  ? paid
+                    ? "Kode unik QRIS otomatis menandai pembayaran ini sebagai milik invoice kamu."
+                    : "Total sudah termasuk kode unik QRIS otomatis; bayar tepat nominal ini."
+                  : showAuto
+                    ? "QRIS otomatis menambahkan kode unik kecil ke nominal ini."
+                    : "Jangan transfer nominal berbeda."}
               </p>
               <p className="font-data text-[10px] font-bold whitespace-pre-wrap text-deep-ube">
                 STATUS PEMBAYARAN · {state.printed}
@@ -244,9 +263,21 @@ function InvoiceComponent() {
                 <Badge tone="ube">LUNAS</Badge>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-[10px] bg-vanilla px-4 py-[13px]">
-                <p className="text-xs font-bold">Total invoice</p>
-                <p className="font-display text-2xl font-bold text-deep-ube">{total}</p>
+                <p className="text-xs font-bold">
+                  {invoice.autoQrisPaid ? "Total dibayar" : "Total invoice"}
+                </p>
+                <p className="font-display text-2xl font-bold text-deep-ube">
+                  {formatRupiah(invoice.autoQrisPaid?.totalAmount ?? invoice.total)}
+                </p>
               </div>
+              {invoice.autoQrisPaid && (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-plum">Kode unik</p>
+                  <p className="text-right text-xs font-bold">
+                    {formatRupiah(invoice.autoQrisPaid.uniqueCode)} · total invoice {total}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold text-plum">Metode</p>
                 <p className="text-right text-xs font-bold">{invoice.paymentMethod}</p>
@@ -460,6 +491,12 @@ function AutoQrisSection({ invoice }: { invoice: InvoiceData }) {
   }, [pending, expiresAt, token, router]);
 
   const payable = pending && (now === null || now < expiresAt);
+  const timedOut = pending && now !== null && now >= expiresAt;
+
+  // Reload once the QR runs out so the invoice breakdown drops its unique code.
+  useEffect(() => {
+    if (timedOut) void router.invalidate();
+  }, [timedOut, router]);
 
   const create = async () => {
     setError(undefined);

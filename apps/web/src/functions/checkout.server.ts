@@ -298,6 +298,15 @@ export async function loadInvoice(token: string) {
     /** How and when a paid invoice was settled, e.g. "QRIS otomatis". */
     paymentMethod: row.paymentMethod,
     paidAt: row.paidAt ? formatFullDateTime(row.paidAt) : null,
+    /** Unique code and amount actually paid, when the order was settled by automatic QRIS. */
+    autoQrisPaid:
+      row.paymentStatus === "paid" && row.paymentMethod === QRIS_AUTO_PAYMENT_METHOD
+        ? ((await db.query.qrisPayment.findFirst({
+            where: { orderId: row.id, status: "paid" },
+            orderBy: { updatedAt: "desc" },
+            columns: { uniqueCode: true, totalAmount: true },
+          })) ?? null)
+        : null,
     latestProof: latest
       ? {
           status: latest.status,

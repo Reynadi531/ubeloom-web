@@ -8,10 +8,10 @@ import {
   product,
 } from "@web-kwu/db/schema/shop";
 import { closeOtherOpenBatches } from "@web-kwu/shop/catalog";
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { getCurrentBatch } from "@/lib/batches.server";
+import { getCurrentBatch, resolveBatch } from "@/lib/batches.server";
 import { productCoverUrl } from "@/lib/product-images";
 import { getShopSettings } from "@/lib/settings.server";
 import { requireAuthMiddleware } from "@/middleware/auth";
@@ -26,13 +26,24 @@ export type BatchStatus = (typeof batchStatuses)[number];
 const notCancelled = ne(order.fulfillmentStatus, "cancelled");
 
 /**
- * Everything the "Batch & produk" page shows: the current batch plus the whole
- * catalog in storefront order, each product annotated with its batch listing.
+ * Everything the "Batch & produk" page shows: the selected batch (default: the
+ * current one) plus the whole catalog in storefront order, each product
+ * annotated with its listing in that batch, and every batch for the picker.
  */
 export const getBatchOverview = createServerFn({ method: "GET" })
   .middleware([requireAuthMiddleware])
-  .handler(async () => {
-    const [current, { deliveryRates }] = await Promise.all([getCurrentBatch(), getShopSettings()]);
+  .validator(z.object({ batchId: z.string().min(1).optional() }))
+  .handler(async ({ data }) => {
+    const [selected, { deliveryRates }, batches] = await Promise.all([
+      resolveBatch(data.batchId),
+      getShopSettings(),
+      db
+        .select({ id: batch.id, name: batch.name, status: batch.status })
+        .from(batch)
+        .orderBy(desc(batch.opensAt)),
+    ]);
+    // A stale or deleted id in the URL falls back to the current batch.
+    const current = selected ?? (await getCurrentBatch());
     const deliveryAreas = deliveryRates.map(({ area }) => area);
     const catalog = await db.query.product.findMany({
       orderBy: { sortOrder: "asc", name: "asc" },
@@ -56,7 +67,7 @@ export const getBatchOverview = createServerFn({ method: "GET" })
         sold: sold.get(row.id) ?? 0,
       };
     });
-    if (!current) return { products, deliveryAreas, current: null };
+    if (!current) return { products, deliveryAreas, batches, current: null };
 
     const [slots, zones, orderTotals, slotFill] = await Promise.all([
       db.query.pickupSlot.findMany({
@@ -89,6 +100,7 @@ export const getBatchOverview = createServerFn({ method: "GET" })
     return {
       products,
       deliveryAreas,
+      batches,
       current: {
         batch: current,
         orders: {

@@ -2,6 +2,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, CircleAlert, ExternalLink, Info, Save } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { AdminPage } from "@/components/admin/admin-page";
 import {
@@ -49,7 +50,10 @@ type Availability = {
 };
 
 export const Route = createFileRoute("/_auth/dashboard/batch-produk/$slug")({
-  loader: ({ params }) => getProductEditor({ data: { slug: params.slug } }),
+  validateSearch: z.object({ batch: z.string().min(1).optional().catch(undefined) }),
+  loaderDeps: ({ search }) => ({ batchId: search.batch }),
+  loader: ({ params, deps }) =>
+    getProductEditor({ data: { slug: params.slug, batchId: deps.batchId } }),
   head: () => ({
     meta: [{ title: "Edit detail produk · ubeloom" }],
   }),
@@ -161,7 +165,11 @@ function ProductEditor({ data }: { data: ProductEditorData }) {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-bold tracking-[1.2px] whitespace-pre text-ube-pop">
-            <Link to="/dashboard/batch-produk" className="transition-colors hover:text-deep-ube">
+            <Link
+              to="/dashboard/batch-produk"
+              search={true}
+              className="transition-colors hover:text-deep-ube"
+            >
               BATCH &amp; PRODUK
             </Link>
             {"   /   DETAIL PRODUK"}
@@ -736,6 +744,7 @@ function SelectedProduct({
               navigate({
                 to: "/dashboard/batch-produk/$slug",
                 params: { slug: event.target.value },
+                search: true,
               })
             }
             className="absolute inset-0 cursor-pointer opacity-0"
@@ -849,6 +858,7 @@ function ProductNotFound() {
         </p>
         <Link
           to="/dashboard/batch-produk"
+          search={true}
           className="text-[13px] font-bold text-deep-ube transition-colors hover:text-ube-pop"
         >
           {"← Kembali ke batch & produk"}

@@ -1,6 +1,7 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { z } from "zod";
 
 import { AdminPage, BatchStatusPill, PageHeading } from "@/components/admin/admin-page";
 import { CompactMetric } from "@/components/admin/metric-card";
@@ -23,7 +24,9 @@ import {
 import { useMutationRunner } from "./-components/fields";
 
 export const Route = createFileRoute("/_auth/dashboard/batch-produk/")({
-  loader: () => getBatchOverview(),
+  validateSearch: z.object({ batch: z.string().min(1).optional().catch(undefined) }),
+  loaderDeps: ({ search }) => ({ batchId: search.batch }),
+  loader: ({ deps }) => getBatchOverview({ data: deps }),
   head: () => ({
     meta: [{ title: "Batch & produk · ubeloom" }],
   }),
@@ -31,7 +34,7 @@ export const Route = createFileRoute("/_auth/dashboard/batch-produk/")({
 });
 
 type CatalogProduct = BatchOverview["products"][number];
-type Dialog = "settings" | "product" | "slots" | "zones" | null;
+type Dialog = "settings" | "new-batch" | "product" | "slots" | "zones" | null;
 
 const statusPill: Record<BatchStatus, string> = {
   draft: "DRAF",
@@ -54,7 +57,7 @@ const textActionClassName =
   "w-fit text-[13px] font-bold whitespace-pre text-deep-ube transition-colors hover:text-ube-pop";
 
 function BatchProductsComponent() {
-  const { current, products, deliveryAreas } = Route.useLoaderData();
+  const { current, products, deliveryAreas, batches } = Route.useLoaderData();
   const [dialog, setDialog] = useState<Dialog>(null);
   const close = () => setDialog(null);
 
@@ -63,7 +66,14 @@ function BatchProductsComponent() {
       eyebrow="UBELOOM  /  ADMIN  /  BATCH & PRODUK"
       title="Batch & produk"
       description="Atur preorder yang masih dibuka, kapasitas, harga dan area layanan."
-      actions={<BatchStatusPill label={pill} />}
+      actions={
+        <div className="flex flex-wrap items-center gap-2.5">
+          {current && batches.length > 1 && (
+            <BatchPicker batches={batches} currentId={current.batch.id} />
+          )}
+          <BatchStatusPill label={pill} />
+        </div>
+      }
     />
   );
 
@@ -107,6 +117,8 @@ function BatchProductsComponent() {
         schedule={`Buka ${formatDayMonth(batch.opensAt)} · tutup ${at(batch.closesAt)} · cutoff pembayaran ${at(batch.paymentCutoffAt)}`}
         action="Ubah pengaturan"
         onAction={() => setDialog("settings")}
+        secondaryAction="+ Batch baru"
+        onSecondaryAction={() => setDialog("new-batch")}
       />
 
       <section
@@ -221,6 +233,7 @@ function BatchProductsComponent() {
       </p>
 
       <BatchSettingsDialog open={dialog === "settings"} onClose={close} batch={batch} />
+      <BatchSettingsDialog open={dialog === "new-batch"} onClose={close} batch={null} />
       <AddProductDialog
         open={dialog === "product"}
         onClose={close}
@@ -242,6 +255,37 @@ function BatchProductsComponent() {
         deliveryAreas={deliveryAreas}
       />
     </AdminPage>
+  );
+}
+
+function BatchPicker({
+  batches,
+  currentId,
+}: {
+  batches: BatchOverview["batches"];
+  currentId: string;
+}) {
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  return (
+    <label className="relative flex items-center rounded-lg border border-ube-line text-[13px] font-semibold text-ink transition-colors focus-within:ring-2 focus-within:ring-ube-pop/30 hover:bg-vanilla">
+      <span className="sr-only">Pilih batch</span>
+      <select
+        value={currentId}
+        onChange={(event) => navigate({ search: { batch: event.target.value } })}
+        className="cursor-pointer appearance-none bg-transparent py-2.5 pr-9 pl-3 outline-none"
+      >
+        {batches.map(({ id, name, status }) => (
+          <option key={id} value={id}>
+            Batch {name} · {statusPill[status]}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute right-3 size-3.5 text-plum"
+      />
+    </label>
   );
 }
 
@@ -275,11 +319,15 @@ function BatchBanner({
   schedule,
   action,
   onAction,
+  secondaryAction,
+  onSecondaryAction,
 }: {
   title: string;
   schedule: string;
   action: string;
   onAction: () => void;
+  secondaryAction?: string;
+  onSecondaryAction?: () => void;
 }) {
   return (
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-[14px] bg-vanilla px-5 py-4">
@@ -287,13 +335,24 @@ function BatchBanner({
         <h2 className="text-[17px]/[1.25] font-extrabold text-ink">{title}</h2>
         <p className="text-[13px] text-plum">{schedule}</p>
       </div>
-      <button
-        type="button"
-        onClick={onAction}
-        className="rounded-full bg-deep-ube px-4 py-[11px] text-[13px]/[14px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
-      >
-        {action}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        {secondaryAction && onSecondaryAction && (
+          <button
+            type="button"
+            onClick={onSecondaryAction}
+            className="rounded-full border border-deep-ube px-4 py-[10px] text-[13px]/[14px] font-bold text-deep-ube transition-colors hover:bg-surface"
+          >
+            {secondaryAction}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onAction}
+          className="rounded-full bg-deep-ube px-4 py-[11px] text-[13px]/[14px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
+        >
+          {action}
+        </button>
+      </div>
     </section>
   );
 }
@@ -391,6 +450,7 @@ function ProductAdminCard({
           <Link
             to="/dashboard/batch-produk/$slug"
             params={{ slug }}
+            search={true}
             className={textActionClassName}
           >
             {"Edit produk  →"}

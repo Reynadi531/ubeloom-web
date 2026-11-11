@@ -12,7 +12,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Product } from "@/components/storefront/product-card";
-import { getCurrentBatch, getPublicBatch } from "@/lib/batches.server";
+import { getCurrentBatch, getPublicBatch, resolveBatch } from "@/lib/batches.server";
 import { formatDateTime, formatDayMonth, formatRupiah } from "@/lib/format";
 import {
   MAX_PRODUCT_IMAGE_BYTES,
@@ -244,9 +244,9 @@ export const getProduct = createServerFn({ method: "GET" })
 
 export const getProductEditor = createServerFn({ method: "GET" })
   .middleware([requireAuthMiddleware])
-  .validator(z.object({ slug: z.string().min(1) }))
+  .validator(z.object({ slug: z.string().min(1), batchId: z.string().min(1).optional() }))
   .handler(async ({ data }) => {
-    const current = await getCurrentBatch();
+    const current = (await resolveBatch(data.batchId)) ?? (await getCurrentBatch());
     const row = await db.query.product.findFirst({
       where: { slug: data.slug },
       with: { batchProducts: { where: { batchId: current?.id ?? "" } } },

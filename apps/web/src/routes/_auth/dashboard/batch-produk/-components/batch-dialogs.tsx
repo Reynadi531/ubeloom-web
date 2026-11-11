@@ -70,12 +70,16 @@ export function BatchSettingsDialog({
   onClose: () => void;
   batch: BatchRow | null;
 }) {
+  const description = batch
+    ? "Waktu dalam WIB. Membuka batch ini akan menutup batch lain yang masih dibuka."
+    : "Waktu dalam WIB. Membuka batch ini akan menutup batch lain yang masih dibuka. Slot pickup, jadwal delivery dan produk diatur setelah batch dibuat.";
+
   return (
     <AdminDialog
       open={open}
       onClose={onClose}
       title={batch ? "Pengaturan batch" : "Buat batch"}
-      description="Waktu dalam WIB. Membuka batch ini akan menutup batch lain yang masih dibuka."
+      description={description}
     >
       <BatchSettingsForm batch={batch} onDone={onClose} />
     </AdminDialog>
@@ -83,6 +87,7 @@ export function BatchSettingsDialog({
 }
 
 function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: () => void }) {
+  const navigate = useNavigate();
   const run = useMutationRunner();
   const [pending, setPending] = useState(false);
   const now = new Date();
@@ -112,9 +117,18 @@ function BatchSettingsForm({ batch, onDone }: { batch: BatchRow | null; onDone: 
     });
     if (!parsed.success) return void toast.error(firstIssue(parsed.error));
     setPending(true);
-    const ok = await run(() => saveBatch({ data: parsed.data }), "Pengaturan batch disimpan");
+    let id: string | undefined;
+    const ok = await run(
+      async () => {
+        ({ id } = await saveBatch({ data: parsed.data }));
+      },
+      batch ? "Pengaturan batch disimpan" : "Batch dibuat",
+    );
     setPending(false);
-    if (ok) onDone();
+    if (!ok) return;
+    onDone();
+    // Show the new batch even when another batch is still open.
+    if (!batch && id) await navigate({ to: "/dashboard/batch-produk", search: { batch: id } });
   };
 
   return (
@@ -636,7 +650,13 @@ function AddProductForm({
     setPending(false);
     if (!ok || !slug) return;
     onDone();
-    if (isNew) await navigate({ to: "/dashboard/batch-produk/$slug", params: { slug } });
+    if (isNew) {
+      await navigate({
+        to: "/dashboard/batch-produk/$slug",
+        params: { slug },
+        search: { batch: batchId },
+      });
+    }
   };
 
   return (

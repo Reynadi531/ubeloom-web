@@ -19,3 +19,166 @@
   --font-data: "JetBrains Mono", ui-monospace, monospace;
   --font-wordmark: "Manrope", system-ui, sans-serif;
 }
+
+.storefront-motion a:focus-visible,
+.storefront-motion button:focus-visible {
+  outline: 3px solid var(--color-deep-ube);
+  outline-offset: 4px;
+}
+
+.storefront-motion button {
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .storefront-motion main > section:first-of-type:not(.storefront-hero) > * {
+    animation: storefront-enter 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .storefront-motion main > section:first-of-type:not(.storefront-hero) > :nth-child(2) {
+    animation-delay: 120ms;
+  }
+
+  /* Payment and checkout content fades in without moving its controls. */
+  .storefront-motion[data-transactional] main {
+    animation: storefront-fade 350ms ease both;
+  }
+
+  /* Lead with the headline, then settle the food photo and ordering action. */
+  .storefront-hero > div > * {
+    animation: storefront-enter 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .storefront-hero h1 {
+    animation-delay: 80ms;
+  }
+
+  .storefront-hero h1 + p {
+    animation-delay: 160ms;
+  }
+
+  .storefront-hero > div > div {
+    animation-delay: 240ms;
+  }
+
+  .storefront-hero > img {
+    animation: storefront-photo 850ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  }
+
+  /* Reveal offscreen content once, without hiding the server-rendered page. */
+  .storefront-motion [data-reveal-state] {
+    transition:
+      opacity 550ms ease,
+      translate 650ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .storefront-motion [data-reveal-state="pending"]:not(:focus-within) {
+    opacity: 0;
+    translate: 0 20px;
+  }
+
+  .storefront-products > article {
+    transition:
+      translate 220ms ease,
+      border-color 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  .storefront-products picture {
+    overflow: hidden;
+  }
+
+  .storefront-products img {
+    transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .storefront-products > article:focus-within {
+    border-color: var(--color-deep-ube);
+  }
+
+  .storefront-cta,
+  .storefront-motion header a,
+  .storefront-motion header button {
+    transition:
+      translate 200ms ease,
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+
+  .storefront-cta:active,
+  .storefront-motion header button:active {
+    translate: 0 1px;
+  }
+
+  .storefront-motion #storefront-mobile-menu {
+    animation: storefront-enter 220ms ease both;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .storefront-products > article:hover {
+      translate: 0 -4px;
+      border-color: var(--color-deep-ube);
+      box-shadow: 0 8px 20px rgb(124 41 97 / 10%);
+    }
+
+    .storefront-products > article:hover img {
+      transform: scale(1.035);
+    }
+
+    .storefront-cta:hover {
+      translate: 0 -2px;
+    }
+  }
+}
+
+@keyframes storefront-enter {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes storefront-photo {
+  from {
+    opacity: 0;
+    transform: scale(0.97) rotate(-1deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes storefront-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media print {
+  .storefront-motion *,
+  .storefront-motion *::before,
+  .storefront-motion *::after {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    translate: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storefront-motion *,
+  .storefront-motion *::before,
+  .storefront-motion *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

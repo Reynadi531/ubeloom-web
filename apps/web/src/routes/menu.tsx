@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ReactLenis } from "lenis/react";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import { CalendarDays, MapPin, Truck, type LucideIcon } from "lucide-react";
 
 import { batchCopy } from "@/components/storefront/batch-copy";
@@ -39,8 +39,7 @@ function MenuComponent() {
   const copy = batchCopy(batch);
 
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
-      <ReactLenis root options={{ anchors: true }} />
+    <StorefrontMotion smoothScroll className="flex min-h-svh flex-col bg-white font-body text-ink">
       <StorefrontNav />
       <main className="flex-1">
         <MenuHero batch={copy} />
@@ -53,7 +52,7 @@ function MenuComponent() {
         />
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }
 
@@ -126,7 +125,7 @@ function ProductCatalog({ products }: { products: Product[] }) {
         <p className="text-xs text-plum">Harga per porsi · stok mengikuti batch preorder</p>
       </div>
 
-      <div className="grid gap-[22px] lg:grid-cols-2">
+      <div className="storefront-products grid gap-[22px] lg:grid-cols-2">
         {products.map((product) => (
           <ProductCard key={product.slug} product={product} />
         ))}

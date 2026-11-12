@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ReactLenis } from "lenis/react";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import { PackageCheck, ScanLine } from "lucide-react";
 
 import { batchCopy } from "@/components/storefront/batch-copy";
@@ -74,8 +74,7 @@ function CaraPesanComponent() {
   );
 
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
-      <ReactLenis root />
+    <StorefrontMotion smoothScroll className="flex min-h-svh flex-col bg-white font-body text-ink">
       <StorefrontNav />
       <main className="flex-1">
         <OrderingGuideHero />
@@ -92,7 +91,7 @@ function CaraPesanComponent() {
         />
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }
 
@@ -157,6 +156,7 @@ function PreorderGuide({
           {steps.map(({ title, description }, index) => (
             <li
               key={title}
+              data-reveal
               className="flex gap-4 border-b border-ube-line py-[17px] lg:min-h-[104px] lg:gap-[18px]"
             >
               <span className="flex size-[42px] shrink-0 items-center justify-center rounded-full bg-vanilla text-sm font-bold text-deep-ube">

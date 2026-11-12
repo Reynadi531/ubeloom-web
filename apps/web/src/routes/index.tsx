@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ReactLenis } from "lenis/react";
 import { CalendarDays, MapPin, Truck, type LucideIcon } from "lucide-react";
 
 import { batchCopy } from "@/components/storefront/batch-copy";
 import ProductCard, { type Product } from "@/components/storefront/product-card";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import StorefrontNav from "@/components/storefront/storefront-nav";
 import { getStorefront } from "@/functions/products";
 import { DEFAULT_DESCRIPTION, LOGO_IMAGE, SITE_NAME, absoluteUrl, jsonLd, seo } from "@/lib/seo";
@@ -80,9 +80,7 @@ function HomeComponent() {
   const copy = batchCopy(batch);
 
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
-      {/* Lenis honours each section's scroll-margin-top when following #anchor links. */}
-      <ReactLenis root options={{ anchors: true }} />
+    <StorefrontMotion smoothScroll className="flex min-h-svh flex-col bg-white font-body text-ink">
       <StorefrontNav />
       <main className="flex flex-1 flex-col">
         <Hero batch={copy} />
@@ -91,13 +89,13 @@ function HomeComponent() {
         <Fulfillment batch={copy} />
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }
 
 function Hero({ batch }: { batch: BatchCopy }) {
   return (
-    <section className="mx-auto grid w-full max-w-[1280px] gap-[13px] px-5 py-[25px] lg:min-h-[400px] lg:grid-cols-[minmax(0,560px)_1fr] lg:items-center lg:gap-[42px] lg:px-16 lg:pt-[42px] lg:pb-10">
+    <section className="storefront-hero mx-auto grid w-full max-w-[1280px] gap-[13px] px-5 py-[25px] lg:min-h-[400px] lg:grid-cols-[minmax(0,560px)_1fr] lg:items-center lg:gap-[42px] lg:px-16 lg:pt-[42px] lg:pb-10">
       <div className="flex flex-col items-start gap-[13px] lg:gap-[18px]">
         <p className="flex items-center gap-[7px] rounded-full bg-vanilla px-[11px] py-[7px] font-data text-[10px] font-bold text-deep-ube lg:gap-2 lg:px-3.5 lg:py-2 lg:text-[11px]">
           <span aria-hidden className="size-[7px] rounded-full bg-ube-pop lg:size-2" />
@@ -125,7 +123,7 @@ function Hero({ batch }: { batch: BatchCopy }) {
         <div className="flex items-center gap-3.5">
           <a
             href="#menu"
-            className="rounded-full bg-deep-ube px-[22px] py-[13px] text-[15px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
+            className="storefront-cta rounded-full bg-deep-ube px-[22px] py-[13px] text-[15px] font-bold text-vanilla transition-colors hover:bg-ube-pop"
           >
             <span className="lg:hidden">Preorder sekarang →</span>
             <span className="hidden lg:inline">Preorder batch {batch.number} →</span>
@@ -187,6 +185,7 @@ function Catalog({ products }: { products: Product[] }) {
   return (
     <section
       id="menu"
+      data-reveal
       className="order-1 mx-auto flex w-full max-w-[1280px] scroll-mt-4 flex-col gap-3.5 px-5 pt-[26px] pb-5 lg:order-none lg:gap-5 lg:px-16 lg:pt-[34px] lg:pb-7"
     >
       <div className="flex flex-col gap-3.5 lg:flex-row lg:items-end lg:justify-between">
@@ -205,7 +204,7 @@ function Catalog({ products }: { products: Product[] }) {
         </p>
       </div>
 
-      <div className="grid gap-3.5 lg:grid-cols-2 lg:gap-5">
+      <div className="storefront-products grid gap-3.5 lg:grid-cols-2 lg:gap-5">
         {products.map((product) => (
           <ProductCard key={product.slug} product={product} />
         ))}
@@ -216,7 +215,11 @@ function Catalog({ products }: { products: Product[] }) {
 
 function Fulfillment({ batch }: { batch: BatchCopy }) {
   return (
-    <section id="pickup-delivery" className="scroll-mt-4 lg:border-t lg:border-ube-line">
+    <section
+      data-reveal
+      id="pickup-delivery"
+      className="scroll-mt-4 lg:border-t lg:border-ube-line"
+    >
       <div className="mx-auto flex max-w-[1280px] flex-col gap-3 px-5 py-[22px] lg:flex-row lg:items-center lg:gap-9 lg:px-16 lg:py-7">
         <div className="flex flex-col gap-3 lg:flex-1 lg:gap-[5px]">
           <h2 className="font-display text-[22px] font-bold text-deep-ube lg:text-[21px]">

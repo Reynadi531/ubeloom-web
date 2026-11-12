@@ -8,6 +8,7 @@ import { fieldErrors, serverErrorMessage } from "@/components/admin/orders/form-
 import { ItemSummaryRow, NumberedSteps, TotalRow } from "@/components/storefront/checkout-parts";
 import PreorderInvitation from "@/components/storefront/preorder-invitation";
 import StorefrontFooter from "@/components/storefront/storefront-footer";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import {
   type CheckoutData,
   MAX_NOTES_LENGTH,
@@ -54,7 +55,10 @@ function CheckoutComponent() {
   const checkout = Route.useLoaderData();
 
   return (
-    <div className="flex min-h-svh flex-col bg-vanilla font-body text-ink">
+    <StorefrontMotion
+      transactional
+      className="flex min-h-svh flex-col bg-vanilla font-body text-ink"
+    >
       <header className="border-b border-ube-line">
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-5 lg:h-[72px] lg:px-16">
           <Link to="/" aria-label="ubeloom beranda">
@@ -89,7 +93,7 @@ function CheckoutComponent() {
         )}
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }
 

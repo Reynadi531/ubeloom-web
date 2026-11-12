@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ReactLenis } from "lenis/react";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import {
   ChefHat,
   ChevronLeft,
@@ -98,8 +98,11 @@ function ProductDetailComponent() {
   const product = Route.useLoaderData();
 
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
-      <ReactLenis root />
+    <StorefrontMotion
+      key={product.slug}
+      smoothScroll
+      className="flex min-h-svh flex-col bg-white font-body text-ink"
+    >
       <StorefrontNav />
       <main className="flex-1">
         <Breadcrumb name={product.name} />
@@ -107,7 +110,7 @@ function ProductDetailComponent() {
         <ProductFacts details={product.details} />
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }
 
@@ -223,7 +226,12 @@ function ProductCarousel({ name, images }: { name: string; images: ProductDetail
     const track = trackRef.current;
     if (!track) return;
     const target = (index + images.length) % images.length;
-    track.scrollTo({ left: target * track.clientWidth, behavior: "smooth" });
+    track.scrollTo({
+      left: target * track.clientWidth,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
   };
 
   return (

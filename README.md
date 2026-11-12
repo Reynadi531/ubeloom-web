@@ -51,6 +51,8 @@ React web apps in this stack share shadcn/ui primitives through `packages/ui`.
 - Update shared primitives in `packages/ui/src/components/*`
 - Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
 
+Storefront pages share `apps/web/src/components/storefront/storefront-motion.tsx` and motion styles in `apps/web/src/index.css`. Hero entrances establish reading order; offscreen sections and ordering steps reveal once; product-card hover feedback identifies clickable items. Checkout and invoice use a short fade without moving payment controls. Keep content visible before JavaScript runs, disable motion and Lenis for `prefers-reduced-motion`, and preserve fully visible printed invoices.
+
 ### Add more shared components
 
 Run this from the project root to add more primitives to the shared UI package:

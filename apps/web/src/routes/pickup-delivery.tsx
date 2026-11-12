@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ReactLenis } from "lenis/react";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import { MapPin, Truck, type LucideIcon } from "lucide-react";
 
 import { batchCopy } from "@/components/storefront/batch-copy";
@@ -67,8 +67,7 @@ function PickupDeliveryComponent() {
   const batch = batchCopy(Route.useLoaderData());
 
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
-      <ReactLenis root />
+    <StorefrontMotion smoothScroll className="flex min-h-svh flex-col bg-white font-body text-ink">
       <StorefrontNav />
       <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 px-5 pt-7 pb-8 lg:px-16">
         <FulfillmentHero batch={batch} />
@@ -77,7 +76,7 @@ function PickupDeliveryComponent() {
         <FulfillmentNotes batch={batch} />
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }
 
@@ -124,6 +123,7 @@ function FulfillmentChoices({ batch }: { batch: BatchCopy }) {
         {fulfillmentMethods(batch).map(({ icon: Icon, title, subtitle, details }) => (
           <article
             key={title}
+            data-reveal
             className="flex flex-col gap-[13px] rounded-2xl border border-ube-line bg-vanilla p-[21px]"
           >
             <div className="flex items-center gap-2.5">

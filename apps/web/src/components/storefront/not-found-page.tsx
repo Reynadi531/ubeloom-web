@@ -1,6 +1,7 @@
 import { Link, type LinkProps } from "@tanstack/react-router";
 
 import StorefrontFooter from "./storefront-footer";
+import StorefrontMotion from "./storefront-motion";
 import StorefrontNav from "./storefront-nav";
 
 type NotFoundPageProps = {
@@ -18,7 +19,7 @@ export default function NotFoundPage({
   cta = { to: "/", label: "Kembali ke beranda" },
 }: NotFoundPageProps) {
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
+    <StorefrontMotion transactional className="flex min-h-svh flex-col bg-white font-body text-ink">
       <StorefrontNav />
       <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-start justify-center gap-4 px-5 py-16 lg:px-16">
         <p className="font-data text-[11px] font-bold text-ube-pop">{eyebrow}</p>
@@ -44,6 +45,6 @@ export default function NotFoundPage({
         </div>
       </main>
       <StorefrontFooter />
-    </div>
+    </StorefrontMotion>
   );
 }

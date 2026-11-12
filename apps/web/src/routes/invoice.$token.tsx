@@ -13,6 +13,7 @@ import {
   TotalRow,
 } from "@/components/storefront/checkout-parts";
 import PrivateNav from "@/components/storefront/private-nav";
+import StorefrontMotion from "@/components/storefront/storefront-motion";
 import {
   type InvoiceData,
   MAX_PROOF_BYTES,
@@ -121,7 +122,7 @@ function InvoiceComponent() {
     invoice.autoQrisPaid ?? (showAuto && autoPayment?.active ? autoPayment : null);
 
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
+    <StorefrontMotion transactional className="flex min-h-svh flex-col bg-white font-body text-ink">
       <PrivateNav />
       <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-[22px] px-5 pt-[38px] pb-12 lg:px-16 print:p-0">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -357,7 +358,7 @@ function InvoiceComponent() {
           </a>
         </div>
       </main>
-    </div>
+    </StorefrontMotion>
   );
 }
 
@@ -811,7 +812,7 @@ function ProofUpload({ invoice }: { invoice: InvoiceData }) {
 
 function InvoiceNotFound() {
   return (
-    <div className="flex min-h-svh flex-col bg-white font-body text-ink">
+    <StorefrontMotion transactional className="flex min-h-svh flex-col bg-white font-body text-ink">
       <PrivateNav />
       <main className="mx-auto flex max-w-[640px] flex-1 flex-col items-start justify-center gap-3 px-5 py-16">
         <h1 className="font-display text-3xl font-bold">Invoice tidak ditemukan.</h1>
@@ -822,6 +823,6 @@ function InvoiceNotFound() {
           Kembali ke menu →
         </Link>
       </main>
-    </div>
+    </StorefrontMotion>
   );
 }

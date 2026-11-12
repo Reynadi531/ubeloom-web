@@ -64,6 +64,16 @@ function RootDocument() {
     <html lang="id" className="dark">
       <head>
         <HeadContent />
+        <script defer src="/analytics.js" />
+        <script
+          id="umami-tracker"
+          defer
+          src="https://analytics.reynadi.id/script.js"
+          data-website-id="4db3015e-d252-4f86-98db-04fcf8ce7cf6"
+          data-before-send="umamiBeforeSend"
+          data-exclude-search="true"
+          data-exclude-hash="true"
+        />
       </head>
       <body>
         <Outlet />

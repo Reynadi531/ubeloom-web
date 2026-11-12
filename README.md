@@ -81,6 +81,14 @@ Bun's automatic env loading is disabled in `bunfig.toml`; the framework integrat
 
 Run standalone Node/Bun tools that use Varlock from the owning app directory so they load that app's schema and env files. `env:generate` only generates TypeScript files; it does not initialize environment values in a subsequent command.
 
+## Analytics
+
+The web root loads `public/analytics.js`, then the deferred Umami tracker at `https://analytics.reynadi.id/script.js` for website `4db3015e-d252-4f86-98db-04fcf8ce7cf6`.
+
+Umami records page views and client-side navigation. Delegated capture listeners record `click`, `change`, `submit`, `reset`, `toggle`, and `invalid` events across storefront and admin pages, including dynamically mounted controls. A submission event records an attempt, not a successful order or payment. Events before the tracker loads are buffered; a blocked or failed tracker does not block the app.
+
+Event data contains only a structural CSS selector in `target`, not element text, IDs, field values, passwords, or payment details. Page titles use the sanitized pathname; URLs and referrers omit query strings, fragments, and invoice tokens. Keystrokes, pointer movement, and scroll events are not collected. Add `data-analytics-ignore` to a container to exclude its interactions. Existing `data-umami-event` click annotations use Umami's own handler instead of sending a duplicate generic click; keep annotation data free of personal information.
+
 ## Deployment
 
 ### Docker Compose
